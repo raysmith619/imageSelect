@@ -1,0 +1,8 @@
+# test1.csrc
+# Test command source file
+Down	# First command
+Down
+Down
+undo
+undo
+		# End of file

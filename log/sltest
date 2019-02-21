@@ -1,0 +1,14 @@
+ 20180926_100140 Creating Log File Name: C:\Users\raysm\workspace\python\imageSelect\log\sltest
+ 20180926_100140 loadTraceFlags: 
+ 20180926_100140 loadTraceFlags: sf1,sf2,f1,f2,f3,fnone
+ 20180926_100140 setupTest()
+ 20180926_100140 Pass: traced sf2(3) with trace(3)
+ 20180926_100140 Pass: Correctly traced sf2(3) with trace(2)
+ 20180926_100140 Pass: Correctly skipped trace sf2(3) with trace(4)
+ 20180926_100140 Pass: flag f1(1) traced(1)
+ 20180926_100140 Pass: flag f2(2) traced(2)
+ 20180926_100140 Pass: flag f3(3) traced(3)
+ 20180926_100140 Pass: flag fnone(1) traced(1)
+ 20180926_100140 End of Test
+ 20180926_100140 Saving properties file C:\Users\raysm\workspace\python\imageSelect\src\SlTrace.properties
+ 20180926_100140 Closing log file C:\Users\raysm\workspace\python\imageSelect\log\sltest

@@ -1,0 +1,8 @@
+# do_undo_down.csrc
+# Adding down cmds after undo doesn't observe the undo
+Down
+Down
+Down
+undo
+undo
+Down
