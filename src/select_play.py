@@ -673,6 +673,14 @@ class SelectPlay:
         self.score_window.update_window()
     
     
+    def clear_score_window(self):
+        if self.mw is None:
+            return
+        
+        if self.score_window is not None:
+            self.score_window.delete_window()
+    
+    
     def update_score_window(self):
         if self.mw is None:
             return
@@ -1230,6 +1238,8 @@ class SelectPlay:
         """ End the game
         :msg: message /reason
         """
+        self.clear_score_window()
+
         scmd = self.get_cmd("end_of_game")
         if msg is not None:
             SlTrace.lg("NO more legal moves!")

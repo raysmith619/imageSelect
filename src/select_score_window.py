@@ -34,6 +34,15 @@ class ScoreWindow:
                               )
         self.move_no_label.pack(side="left", expand=True)
         ###move_no_label.config(width=2, height=1)
+        
+        scores_frame = Frame(self.mw)
+        scores_frame.pack()
+        players = self.play_control.get_players()
+        for player in players:
+            player_frame = Frame(scores_frame)
+            player_frame.pack()
+            
+        
         bw = 5
         bh = 1
         undo_font = ('Helvetica', '50')
