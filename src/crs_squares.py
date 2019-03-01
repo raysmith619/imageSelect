@@ -56,13 +56,14 @@ def str2bool(v):
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
-sys.setrecursionlimit(500)
+###sys.setrecursionlimit(500)
 
 loop = -5        # Repeat game after end after waiting interval, negative = no looping
 nx = 5              # Number of x divisions
 ny = nx             # Number of y divisions
 run_game = True		# Run game upon starting
 show_id = False     # Display component id numbers
+show_players = True # Display players info/control
 show_score = True   # Display score / undo /redo
 stroke_move = False # Support stroke move for touch screens
 width = 600         # Window width
@@ -91,6 +92,7 @@ parser.add_argument('--nx=', type=int, dest='nx', default=nx)
 parser.add_argument('--ny=', type=int, dest='ny', default=ny)
 parser.add_argument('--run_game', type=str2bool, dest='run_game', default=run_game)
 parser.add_argument('--show_id', type=str2bool, dest='show_id', default=show_id)
+parser.add_argument('--show_players', type=str2bool, dest='show_players', default=show_players)
 parser.add_argument('--show_score', type=str2bool, dest='show_score', default=show_score)
 parser.add_argument('--stroke_move', type=str2bool, dest='stroke_move', default=stroke_move)
 parser.add_argument('--trace', dest='trace', default=trace)
@@ -105,6 +107,7 @@ nx = args.nx
 ny = args.ny
 nsq = nx * ny
 show_id = args.show_id
+show_players = args.show_players
 show_score = args.show_score
 stroke_move = args.stroke_move
 trace = args.trace
@@ -289,6 +292,8 @@ def set_squares_button():
                     move_first=1, before_move=before_move,
                     after_move=after_move)
     sp.set_stroke_move(stroke_move)
+    if show_players:
+        show_players_window()
     if show_score:
         show_score_window()
     if run_game:
@@ -325,7 +330,7 @@ def new_game():
 
 
 
-def change_players():
+def show_players_window():
     """ View/Change players
     """
     SlTrace.lg("PlayerControl")
@@ -357,7 +362,7 @@ def pause_cmd():
 
 	    
 app.add_menu_command("NewGame", new_game)
-app.add_menu_command("Players", change_players)
+app.add_menu_command("Players", show_players_window)
 app.add_menu_command("Score", show_score_window)
 app.add_menu_command("CmdFile", cmd_file)
 app.add_menu_command("Run", run_cmd)

@@ -28,8 +28,13 @@ from select_player import SelectPlayer
 
     
 class PlayerControl(Toplevel):
+    CONTROL_NAME_PREFIX = "player_control"
+    DEF_WIN_X = 500
+    DEF_WIN_Y = 300
     
-    def __init__(self, ctlbase=None, title=None, display=True):
+    def __init__(self, ctlbase=None,
+                control_prefix=None,
+                title=None, display=True):
         """ Display / Control of players
         :ctlbase: base control object
         
@@ -56,12 +61,15 @@ class PlayerControl(Toplevel):
         """
         ###Toplevel.__init__(self, parent)
         self.ctlbase = ctlbase
+        if control_prefix is None:
+            control_prefix = self.CONTROL_NAME_PREFIX
+        self.control_prefix = control_prefix
         """ Setup control names found in properties file
         Updated as new control entries are added
         """
         prop_keys = SlTrace.getPropKeys()
         player_pattern = r'(?:\.(\w+))'
-        pattern = (SelectPlayer.CONTROL_NAME_PREFIX
+        pattern = (self.control_prefix
                     + player_pattern + player_pattern)
         rpat = re.compile(pattern)
         self.players = {}   # Dictionary of SelectPlayer
@@ -79,7 +87,7 @@ class PlayerControl(Toplevel):
                 prop_val = SlTrace.getProperty(prop_key)
                 
                 if player_id not in self.players:
-                    player = SelectPlayer(player_id)
+                    player = SelectPlayer(self, player_id)
                     self.players[player_id] = player # New entry
                 else:
                     player = self.players[player_id]
@@ -131,16 +139,8 @@ class PlayerControl(Toplevel):
         """ display /redisplay controls to enable
         entry / modification
         """
-        win_width =  600
-        win_height = 300
-        win_x0 = 800
-        win_y0 = 200
-                    
         self.mw = Toplevel()
-        win_setting = "%dx%d+%d+%d" % (win_width, win_height, win_x0, win_y0)
 
-        
-        self.mw.geometry(win_setting)
         self.mw.title(self.title)
         top_frame = Frame(self.mw)
         self.mw.protocol("WM_DELETE_WINDOW", self.delete_window)
@@ -204,6 +204,81 @@ class PlayerControl(Toplevel):
         delete_button = Button(master=control_button_frame, text="Delete",
                             command=self.delete_player)
         delete_button.pack(side="left", expand=True)
+
+        self.mw.bind( '<Configure>', self.win_size_event)
+        self.arrange_windows()
+
+
+    def win_size_event(self, event):
+        """ Window sizing event
+        """
+        win_x = self.mw.winfo_x()
+        win_y = self.mw.winfo_y()
+        win_width = self.mw.winfo_width()
+        win_height = self.mw.winfo_height()
+        self.set_prop_val("win_x", win_x)
+        self.set_prop_val("win_y", win_y)
+        self.set_prop_val("win_width", win_width)
+        self.set_prop_val("win_height", win_height)
+
+
+       
+    
+    def arrange_windows(self):
+        """ Arrange windows
+            Get location and size for properties if any
+        """
+        win_x = self.get_prop_val("win_x", self.DEF_WIN_X)
+        if win_x < 0:
+            win_x = 50
+        win_y = self.get_prop_val("win_y", self.DEF_WIN_Y)
+        if win_y < 0:
+            win_y = 50
+        
+        win_width = self.get_prop_val("win_width", self.mw.winfo_width())
+        win_height = self.get_prop_val("win_height", self.mw.winfo_height())
+        geo_str = "%dx%d+%d+%d" % (win_width, win_height, win_x, win_y)
+        self.mw.geometry(geo_str)
+        
+    
+    def get_prop_key(self, name):
+        """ Translate full  control name into full Properties file key
+        """        
+        key = self.control_prefix + "." + name
+        return key
+
+    def get_prop_val(self, name, default):
+        """ Get property value as (string)
+        :name: field name
+        :default: default value, if not found
+        :returns: "" if not found
+        """
+        prop_key = self.get_prop_key(name)
+        prop_val = SlTrace.getProperty(prop_key)
+        if prop_val is None:
+            return default
+        
+        if isinstance(default, int):
+            if prop_val == "":
+                return 0
+           
+            return int(prop_val)
+        elif isinstance(default, float):
+            if prop_val == "":
+                return 0.
+           
+            return float(prop_val)
+        else:
+            return prop_val
+
+    def set_prop_val(self, name, value):
+        """ Set property value as (string)
+        :name: field name
+        :value: default value, if not found
+        """
+        prop_key = self.get_prop_key(name)
+        SlTrace.setProperty(prop_key, str(value))
+
 
 
     def get_next_player(self, set_player=True):
@@ -536,14 +611,90 @@ class PlayerControl(Toplevel):
                 else:
                     field_ctl.config({"bg" : "light gray"})
 
-    def set_scores(self, score=0, only_playing=False):
+
+    def set_score(self, player, score):
+        """ Set player score centrally 
+        :player: to set
+        :score: to set
+        """
+        cplayer = self.players[player.id]
+        player.score = score        # Set possible copy
+        cplayer.score = score
+
+
+    def get_score(self, player):
+        """ Get player score centrally 
+        :player: to get
+        """
+        cplayer = self.players[player.id]
+        return cplayer.score
+
+
+    def set_played(self, player, played):
+        """ Set player game centrally 
+        :player: to set
+        :played: to set
+        """
+        cplayer = self.players[player.id]
+        player.game = played        # Set possible copy
+        cplayer.game = played
+
+
+    def get_played(self, player):
+        """ Get player game centrally 
+        :player: to get
+        """
+        cplayer = self.players[player.id]
+        return cplayer.played
+
+
+    def set_wins(self, player, wins):
+        """ Set player game centrally 
+        :player: to set
+        :wins: to set
+        """
+        cplayer = self.players[player.id]
+        player.game = wins        # Set possible copy
+        cplayer.game = wins
+
+
+    def get_wins(self, player):
+        """ Get player game centrally 
+        :player: to get
+        """
+        cplayer = self.players[player.id]
+        return cplayer.wins
+        
+        
+    def set_all_scores(self, score=0, only_playing=False):
         """ Set all player scores
         :score: player score default: 0
+        :only_playing: only modify those playing default: all
         """
         for _, player in self.players.items():
             if only_playing and not player.playing:
                 continue    # Not playing - leave alone
             player.set_score(score)
+
+    def set_all_played(self, played=0, only_playing=False):
+        """ Set all player played
+        :played: player played default: 0
+        :only_playing: only modify those playing default: all
+        """
+        for _, player in self.players.items():
+            if only_playing and not player.playing:
+                continue    # Not playing - leave alone
+            player.set_played(played)
+
+    def set_all_wins(self, wins=0, only_playing=False):
+        """ Set all player wins
+        :wins: player wins default: 0
+        :only_playing: only modify those playing default: all
+        """
+        for _, player in self.players.items():
+            if only_playing and not player.playing:
+                continue    # Not playing - leave alone
+            player.set_wins(wins)
        
     def delete_window(self):
         """ Process Trace Control window close

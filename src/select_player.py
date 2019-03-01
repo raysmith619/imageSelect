@@ -9,6 +9,7 @@ class SelectPlayer:
     id = 0          # Unique id
     
     def __init__(self,
+                 control,           # player control
                  id = None,
                  name = None,
                  label = None,
@@ -22,9 +23,12 @@ class SelectPlayer:
                  level = 0,
                  stay_even = 0,
                  pause = 0.,
-                 score = 0
+                 score = 0,
+                 played = 0,
+                 wins = 0,
                  ):
         """ Player attributes
+        :control:  player control - centralized memory
         :id:   Unique id (count)
             default: generate new id
         :name: playter's name
@@ -50,7 +54,10 @@ class SelectPlayer:
                 Provides some delay before computer response
         :score: Number of points in game
                 default: 0
+        :played: Number of game played
+        :wins: Number of game wins (leading/tieing all others)
         """
+        self.control = control
         if id is None:
             SelectPlayer.id += 1
             id = SelectPlayer.id
@@ -75,6 +82,8 @@ class SelectPlayer:
         self.level = level
         self.steven = stay_even
         self.score = score
+        self.played = played
+        self.wins = wins
         self.ctls = {}          # Dictionary of field control widgets
         self.ctls_vars = {}     # Dictionary of field control widget variables
 
@@ -93,16 +102,40 @@ class SelectPlayer:
                 + "." + str(self.id) + "." + name)
         return key
 
+
     def get_score(self):
-        """ Get current score
+        """ From centralized control: Get current score
         """
-        return self.score
+        return self.control.get_score(self)
     
     
     def set_score(self, score):
         """ Set current score
         """
-        self.score = score
+        self.control.set_score(self, score)
+
+
+    def get_wins(self):
+        """ From centralized control: Get current wins
+        """
+        return self.control.get_wins(self)
+    
+    
+    def set_wins(self, wins):
+        """ Set current wins
+        """
+        self.control.set_wins(self, wins)
+
+    def get_played(self):
+        """ Get current played # TBD update as did get/set_score
+        """
+        return self.played
+    
+    
+    def set_played(self, played):
+        """ Set current played
+        """
+        self.played = played
         
 
     def get_val(self, field_name):

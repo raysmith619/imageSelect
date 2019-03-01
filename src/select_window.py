@@ -13,6 +13,7 @@ from docutils.nodes import reference
 # Here, we are creating our class, Window, and inheriting from the Frame
 # class. Frame is a class from the tkinter module. (see Lib/tkinter/__init__)
 class SelectWindow(Frame):
+    CONTROL_NAME_PREFIX = "game_control"
 
     def __deepcopy__(self, memo=None):
         """ provide deep copy by just passing shallow copy of self,
@@ -26,6 +27,7 @@ class SelectWindow(Frame):
     def __init__(self,
                  master=None,
                  title=None,
+                 control_prefix=None,
                  pgmExit=None,
                  cmd_proc=False,
                  cmd_file=None,
@@ -43,6 +45,9 @@ class SelectWindow(Frame):
         #reference to the master widget, which is the tk window                 
         self.title = title
         self.master = master
+        if control_prefix is None:
+            control_prefix = SelectWindow.CONTROL_NAME_PREFIX
+        self.control_prefix = control_prefix
         self.arrange_selection = arrange_selection
         self.pgmExit = pgmExit
         master.protocol("WM_DELETE_WINDOW", self.pgm_exit)
@@ -92,8 +97,78 @@ class SelectWindow(Frame):
 
                                 # Trace control
         menubar.add_command(label="Trace", command=self.trace_control)
+        self.arrange_windows()
+        self.master.bind( '<Configure>', self.win_size_event)
 
 
+    def win_size_event(self, event):
+        """ Window sizing event
+        """
+        win_x = self.master.winfo_x()
+        win_y = self.master.winfo_y()
+        win_width = self.master.winfo_width()
+        win_height = self.master.winfo_height()
+        self.set_prop_val("win_x", win_x)
+        self.set_prop_val("win_y", win_x)
+        self.set_prop_val("win_width", win_width)
+        self.set_prop_val("win_height", win_height)
+    
+    def arrange_windows(self):
+        """ Arrange windows
+            Get location and size for properties if any
+        """
+        win_x = self.get_prop_val("win_x", 50)
+        if win_x < 0:
+            win_x = 50
+        win_y = self.get_prop_val("win_y", 50)
+        if win_y < 0:
+            win_y = 50
+        
+        win_width = self.get_prop_val("win_width", self.master.winfo_width())
+        win_height = self.get_prop_val("win_height", self.master.winfo_height())
+        geo_str = "%dx%d+%d+%d" % (win_width, win_height, win_x, win_y)
+        self.master.geometry(geo_str)
+        
+    
+    def get_prop_key(self, name):
+        """ Translate full  control name into full Properties file key
+        """        
+        key = self.control_prefix + "." + name
+        return key
+
+    def get_prop_val(self, name, default):
+        """ Get property value as (string)
+        :name: field name
+        :default: default value, if not found
+        :returns: "" if not found
+        """
+        prop_key = self.get_prop_key(name)
+        prop_val = SlTrace.getProperty(prop_key)
+        if prop_val is None:
+            return default
+        
+        if isinstance(default, int):
+            if prop_val == "":
+                return 0
+           
+            return int(prop_val)
+        elif isinstance(default, float):
+            if prop_val == "":
+                return 0.
+           
+            return float(prop_val)
+        else:
+            return prop_val
+
+    def set_prop_val(self, name, value):
+        """ Set property value as (string)
+        :name: field name
+        :value: default value, if not found
+        """
+        prop_key = self.get_prop_key(name)
+        SlTrace.setProperty(prop_key, str(value))
+        
+        
     def pgm_exit(self):
         if self.pgmExit is not None:
             self.pgmExit()

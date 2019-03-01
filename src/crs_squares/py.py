@@ -156,13 +156,13 @@ if not is_in_pgm_args("ny"):
 def before_move(scmd):
     global move_no_label
     
-    SlTrace.lg("before_move")
+    SlTrace.lg("before_move", "move_execute")
     if SlTrace.trace("selected"):
         sp.list_selected("before_move")
 
     
 def after_move(scmd):
-    if SlTrace.trace("selected"):
+    if SlTrace.trace("move_execute"):
         sp.list_selected("after_move")
     
     
@@ -247,7 +247,7 @@ def set_squares_button():
                     after_move=after_move)
     sp.set_stroke_move(stroke_move)
     if show_score:
-        score_window()
+        show_score_window()
 
 def score_window():
     """ Setup score /undo/redo window
@@ -351,7 +351,7 @@ def pause_cmd():
 	    
 app.add_menu_command("NewGame", new_game)
 app.add_menu_command("Players", change_players)
-app.add_menu_command("Score", score_window)
+app.add_menu_command("Score", show_score_window)
 app.add_menu_command("CmdFile", cmd_file)
 app.add_menu_command("Run", run_cmd)
 app.add_menu_command("Pause", pause_cmd)

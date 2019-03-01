@@ -22,6 +22,7 @@ from select_score_window import ScoreWindow
 
 class SelectPlay:
     def __init__(self, board=None, mw=None,
+                 score_win=None,
                  start_run=True,
                  on_end=None,
                  on_exit=None,
@@ -33,6 +34,7 @@ class SelectPlay:
         """ Setup play
         :board: playing board (SelectSquares)
         :mw: Instance of Tk, if one, else created here
+        :score_win: preexisting score window - left on exit
         :start_run: Start running default: True
         :run_check_ms: Time for running loop check
                 default = 10mec
@@ -51,7 +53,11 @@ class SelectPlay:
             mw = Tk()
         self.mw = mw
         self.mw.protocol("WM_DELETE_WINDOW", self.delete_window)
-        self.score_win = None       # iff not None score win
+        self.score_win = score_win       # iff not None score win
+        if score_win is not None:
+            self.preexisting_score_win = True
+        else:
+            self.preexisting_score_win = False
         self.in_game = False
         self.running = False
         self.run_check_ms = run_check_ms
@@ -583,7 +589,6 @@ class SelectPlay:
         self.do_cmd()       # Must display now
         if self.before_move is not None:
             self.before_move(scmd)
-        self.update_score_window()
         self.enable_moves()
         self.trace_scores("announce_player before auto:")
         if player.auto:
@@ -669,7 +674,8 @@ class SelectPlay:
         if self.mw is None:
             return
         if self.score_window is None:
-            self.score_window = ScoreWindow(self)            
+            self.score_window = ScoreWindow(self)
+            self.preexisting_score_win = False            
         self.score_window.update_window()
     
     
@@ -1238,12 +1244,12 @@ class SelectPlay:
         """ End the game
         :msg: message /reason
         """
-        self.clear_score_window()
+        SlTrace.lg("end of game")
+        self.score_game()
 
         scmd = self.get_cmd("end_of_game")
-        if msg is not None:
-            SlTrace.lg("NO more legal moves!")
-            self.add_message("No more legal moves",
+        if msg is None:
+            self.add_message("End of Game",
                          time_sec=1)
             
         self.add_message("Game Over")
@@ -1252,12 +1258,37 @@ class SelectPlay:
         if self.on_end is not None:
             ###self.on_end()
             self.mw.after(0, self.on_end)
+
+
+    def score_game(self):
+        """ Score current game, updating statistics
+        played: number of games played
+        wins: number of games with top score (or tie)
+        """
+        players = self.player_control.get_players()
+        if len(players) == 0:
+            return      # No players
+        
+        top_score = players[0].get_score()
+        for player in players:
+            if player.get_score() > top_score:
+                top_score = player.get_score()
+                
+        for player in players:
+            player_score = player.get_score()
+            player_played = player.get_played()
+            player_wins = player.get_wins()
+            player.set_played(player_played+1)
+            if  player_score >= top_score:
+                player.set_wins(player_wins+1)
+        self.update_score_window()
+
             
     def start_game(self):
         self.in_game = True
         self.new_move = True
         self.manual_moves = []          # Initialize empty list
-        self.player_control.set_scores(0, only_playing=True)
+        self.player_control.set_all_scores(0, only_playing=True)
         SlTrace.lg("start_game", "execute")
         self.set_move_no(0)
         self.get_cmd("start_game")
@@ -1459,12 +1490,6 @@ class SelectPlay:
         for player in self.get_players():
             SlTrace.lg("%sscore: %d for %s"
                         % (prefix, player.score, player))
-
-
-    def setup_score_window(self):
-        """ Setup score window
-        """
-        self.score_window = ScoreWindow(self)
         
 
     def set_score(self, score, player=None):
@@ -1489,12 +1514,12 @@ class SelectPlay:
         scmd = self.get_cmd()
         prev_score = player.get_score()
         new_score = prev_score + len(squares)
+        SlTrace.lg("prev_score:%d new_score:%d %s" % (prev_score, new_score, player))
         self.set_score(new_score, player)
         self.trace_scores("after set_score(%d, %s)" % (new_score, player))
         scmd.add_prev_score(player, prev_score)
         scmd.add_new_score(player, new_score)
-        """ TBD - update score display
-        """
+        self.update_score_window()
     
     
     def update_score_from_cmd(self, new_score, prev_score):
