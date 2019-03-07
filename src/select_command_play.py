@@ -347,6 +347,9 @@ class SelectCommandPlay(SelectCommand):
         All commands capable of undo/redo call this
         without storing it for redo
         """
+        if self.user_module is None:
+            return
+        
         SlTrace.lg("\n execute(%s)" % self, "execute")
         self.user_module.trace_scores("execute")
         if SlTrace.trace("selected"):

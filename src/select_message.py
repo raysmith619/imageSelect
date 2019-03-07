@@ -4,10 +4,12 @@
 class SelectMessage:
     def __init__(self, text, color=None,
                       font_size=None,
-                      time_sec=None):
+                      time_sec=None,
+                      msg=None):
         """ Setup select message
         """
         self.text = text
+        self.msg = msg
         if color is None:
             color = "dark gray"
         self.color = color
@@ -23,4 +25,8 @@ class SelectMessage:
             st += " %.2f sec" % self.time_sec
         return st
 
-        
+    def destroy(self):
+        if self.msg is not None:
+            self.msg.destroy()
+        self.msg = None
+            

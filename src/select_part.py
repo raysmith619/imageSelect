@@ -436,6 +436,12 @@ class SelectPart(object):
         return st
 
 
+    def destroy(self):
+        """ Relinquish resources
+        """
+        pass
+        
+
     def diff(self, part):
         """ Provide view of difference between
             us and part
@@ -671,6 +677,12 @@ class SelectPart(object):
         """
         if ActiveCheck.not_active():
             return      # At end
+        
+        if self.sel_area is None:
+            return
+        
+        if self.sel_area.canvas is None:
+            return
         
         if self.part_id not in self.sel_area.parts_by_id:
             SlTrace.lg("part not in parts_by_id")

@@ -332,8 +332,15 @@ class SelectSquares(object):
             
     def display(self):
             self.area.display()
-    
 
+
+    def destroy(self):
+        if self.area is not None:
+            self.area.destroy()
+            self.area = None
+        if self.canvas is not None:
+            self.canvas.destroy()
+            self.canvas = None
     
 
     def remove_parts(self, parts):

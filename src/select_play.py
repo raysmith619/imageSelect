@@ -22,7 +22,8 @@ from select_score_window import ScoreWindow
 
 class SelectPlay:
     def __init__(self, board=None, mw=None,
-                 score_win=None,
+                 game_control = None,
+                 msg_frame=None,
                  start_run=True,
                  on_end=None,
                  on_exit=None,
@@ -30,11 +31,11 @@ class SelectPlay:
                  auto_play_check_ms=10,
                  cmd_stream=None,
                  btmove=.1, player_control=None, move_first=None,
-                 before_move=None, after_move=None):
+                 before_move=None, after_move=None,
+                 show_ties=False):
         """ Setup play
         :board: playing board (SelectSquares)
         :mw: Instance of Tk, if one, else created here
-        :score_win: preexisting score window - left on exit
         :start_run: Start running default: True
         :run_check_ms: Time for running loop check
                 default = 10mec
@@ -42,10 +43,20 @@ class SelectPlay:
         :on_end: function, if present, to call at end of game
         :before_move: function, if any, to call before move
         :after_move: function, if any, to call after move
+        :show_ties: ties are shown
         """
         self.playing = True     # Hack to suppress activity on exit event
         self.score_window = None    # Set iff window displayed
+        if game_control is None:
+            raise SelectError("SelectPlay: manditory game_control is missing")
+        self.game_control = game_control
+        game_control.set_play_control(self)     # Link ourselves to display/control
+        self.speed_step = -1
         self.board = board
+        if msg_frame is None:
+            self.msg_frame = Frame(board.canvas)
+            self.msg_frame.pack(side="bottom")
+        self.msg_frame = msg_frame
         self.cmd_stream = cmd_stream
         self.command_manager = SelectCommandManager(self)
         SelectCommandPlay.set_management(self.command_manager, self)
@@ -53,11 +64,6 @@ class SelectPlay:
             mw = Tk()
         self.mw = mw
         self.mw.protocol("WM_DELETE_WINDOW", self.delete_window)
-        self.score_win = score_win       # iff not None score win
-        if score_win is not None:
-            self.preexisting_score_win = True
-        else:
-            self.preexisting_score_win = False
         self.in_game = False
         self.running = False
         self.run_check_ms = run_check_ms
@@ -72,13 +78,12 @@ class SelectPlay:
             player_control = PlayerControl(display=False)
         self.player_control = player_control
         self.player_index = 0
-        self.msg = None         # message widget, if any
         self.messages = []      # Command messages, if any
         self.first_time = True       # flag showing first time
         self.moves = []
         board.add_down_click_call(self.down_click)
         board.add_new_edge_call(self.new_edge)
-        self.cur_message = None # Currently displaying message, if any
+        self.cur_message = None         # Currently displaying message, if any
         self.select_cmd = None
         self.before_move = before_move
         self.after_move = after_move
@@ -98,7 +103,9 @@ class SelectPlay:
         self.on_end = on_end
         if self.start_run:
             self.mw.after(self.run_check_ms, self.running_loop)
-
+        self.restart_game = False        # Signal to restart after end
+        self.game_stopped = False              # Stop loop (one time)
+        self.show_ties = show_ties
 
     def running_loop(self, run_check_ms=None):
         """ Run game (loop) untill self.running set false
@@ -107,6 +114,7 @@ class SelectPlay:
         self.running = True     # Still in game
         self.run = True         # progressing (not paused)
         self.first_time = True 
+        self.game_control_updates()
         if run_check_ms is not None:
             self.run_check_ms = run_check_ms
         while self.running:
@@ -114,13 +122,15 @@ class SelectPlay:
                 break
             self.mw.update_idletasks()
             self.mw.update()        
-            if self.run:
+            if self.running and self.run:
                 if self.first_time:
                     self.start_game()
                     self.first_time = False
                 else:
                     if self.start_move():
                         self.next_move_no()
+        if self.on_end is not None:
+            self.mw.after(0, self.on_end)       # After run processing
 
 
 
@@ -613,6 +623,26 @@ class SelectPlay:
         scmd.add_message(message)
 
 
+    def destroy(self):
+        """ Relinquish game resources, e.g. window(s)
+        """
+        if self.cur_message is not None:
+            self.cur_message.destroy()
+            self.cur_message = None
+        if self.board is not None:
+            self.board.destroy()
+            self.board = None
+        if self.game_control is not None:
+            self.game_control.destroy()
+            self.game_control = None
+        if self.player_control is not None:
+            self.player_control.destroy()
+            self.player_control = None
+        if self.score_window is not None:
+            self.score_window.destroy()
+            self.score_window = None
+            
+
 
        
     def delete_window(self):
@@ -674,8 +704,7 @@ class SelectPlay:
         if self.mw is None:
             return
         if self.score_window is None:
-            self.score_window = ScoreWindow(self)
-            self.preexisting_score_win = False            
+            self.score_window = ScoreWindow(self, show_ties=self.show_ties)
         self.score_window.update_window()
     
     
@@ -719,6 +748,9 @@ class SelectPlay:
                 if self.mw is not None and self.mw.winfo_exists():
                     self.mw.update()
                 time.sleep(.01)
+        if self.cur_message is not None:
+            self.cur_message.destroy()
+            self.cur_message = None
         self.waiting_for_message = False
 
 
@@ -754,35 +786,43 @@ class SelectPlay:
         if not self.run:
             return
         
-        if self.mw is None or not self.mw.winfo_exists():
+        if (self.mw is None or not self.mw.winfo_exists()
+            or self.msg_frame is None
+            or not self.msg_frame.winfo_exists()):
             return
         
-        self.wait_message()
+        self.wait_message(message)
         text = message.text
         color = message.color
         font_size = message.font_size
         if font_size is None:
             font_size=40
         time_sec = message.time_sec
+
         
-        if self.mw is None or not self.mw.winfo_exists():
+        if (self.mw is None or not self.mw.winfo_exists()
+            or self.msg_frame is None
+            or not self.msg_frame.winfo_exists()):
             return
         
         if self.mw is not None and self.mw.winfo_exists():
-            if self.msg is not None:
-                self.msg.destroy()
-                self.msg = None
+            if self.cur_message is not None:
+                self.cur_message.destroy()
+                self.cur_message = None
         width = self.get_width()
         if width < 500:
             width = 500
-        self.msg = Message(self.mw, text=text, width=width) # Seems to be pixels!
-        self.msg.config(fg=color, bg='white',
+        message.msg = Message(self.msg_frame, text=text, width=width) # Seems to be pixels!
+        message.msg.config(fg=color, bg='white',
+                        anchor=S,
                         font=('times', font_size, 'italic'))
-        self.msg.pack()
+        message.msg.pack(side="bottom")
+        self.cur_message = message
         if time_sec is not None:
+            if self.speed_step >= 0:
+                time_sec = self.speed_step          # Modify for view / debugging
             end_time = datetime.now() + timedelta(seconds=time_sec)
             message.end_time = end_time
-            self.cur_message = message
 
 
     def end_message(self):
@@ -809,10 +849,10 @@ class SelectPlay:
         Usually called after wait time
         """
         SlTrace.lg("Destroying timed message")
-        if self.msg is not None:
+        if self.cur_message is not None:
             SlTrace.lg("Found message to destroy")
-            self.msg.destroy()
-            self.msg = None
+            self.cur_message.destroy()
+            self.cur_message = None
 
     def get_messages(self):
         """ Get current message, if any
@@ -1017,6 +1057,8 @@ class SelectPlay:
             self.after_move(self.select_cmd)
 
         self.select_cmd = None      # Clear for next time
+        self.mw.update_idletasks()
+        self.mw.update()        
         
         
     def complete_cmd(self):
@@ -1041,6 +1083,8 @@ class SelectPlay:
             return
         self.auto_delay_waiting = True
         pause = player.pause
+        if self.speed_step >= 0:
+            pause = self.speed_step
         delay_ms = int(pause*1000)
         self.mw.after(delay_ms)
         return
@@ -1245,12 +1289,11 @@ class SelectPlay:
         :msg: message /reason
         """
         SlTrace.lg("end of game")
+        self.flush_cmds()
         self.score_game()
-
         scmd = self.get_cmd("end_of_game")
         if msg is None:
-            self.add_message("End of Game",
-                         time_sec=1)
+            self.add_message("End of Game", 1)
             
         self.add_message("Game Over")
         self.do_cmd()
@@ -1260,27 +1303,111 @@ class SelectPlay:
             self.mw.after(0, self.on_end)
 
 
+    def save_properties(self):
+        """ Save profile
+        """
+        SlTrace.save_propfile()
+        
+
+    def new_game(self, msg=None):
+        """ Stop the game and start a new game - orderly but no stats/saving
+        :msg: message /reason
+        """
+        if msg is None:
+            msg = "new game"
+        SlTrace.lg(msg)
+        self.stop_game(msg)
+        self.restart_game = True        # Signal to restart
+
+    def stop_game(self, msg=None):
+        """ Stop the game - orderly but no stats/saving
+        :msg: message /reason
+        """
+        SlTrace.lg("stop game")
+        self.flush_cmds()
+        scmd = self.get_cmd("stop_game")
+        if msg is None:
+            self.add_message("Stop Game", 1)
+        self.do_cmd()
+        self.running = False
+        self.game_stopped = True       # Stop (one time)
+
+    def flush_cmds(self):
+        """  
+        Complete commands in progress
+        """
+        if self.select_cmd is not None:
+            self.do_cmd()
+
+
+    def game_control_updates(self):
+        """ Facilitate immediate changes from game_control
+        """
+        if self.game_control is not None:
+            self.speed_step = self.game_control.get_prop_val("running.speed_step", -1)
+
+
+    def game_count_down(self, wait_time=5, inc=1, text="%.0f seconds till new game"):
+        """ Count down with display
+        :time: length of count down(seconds)
+        :inc: time between display
+        :text: text with %f time till end
+        """
+        temp_run = self.run     # Save for restore
+        self.run = True         # enable cmd execution
+        ###wait_time = 500
+        tbegin = datetime.now()
+        tgoing = 0
+        while tgoing < wait_time:
+            now = datetime.now()
+            tgoing = (now - tbegin).total_seconds()
+            tleft = wait_time-tgoing
+            if tleft > 0:
+                msg_text = text % tleft
+                scmd = self.get_cmd("game_wait")
+                self.add_message(msg_text)
+                self.do_cmd()
+        self.run = temp_run
+        self.message_delete()
+    
     def score_game(self):
         """ Score current game, updating statistics
         played: number of games played
         wins: number of games with top score (or tie)
         """
         players = self.player_control.get_players()
+        game_control = self.game_control
+        if game_control is not None:
+            game_control.set_vals()         # Update any changed game control settings
         if len(players) == 0:
             return      # No players
-        
+        n_top_score = 0
         top_score = players[0].get_score()
         for player in players:
             if player.get_score() > top_score:
                 top_score = player.get_score()
-                
+        for player in players:
+            player_score = player.get_score()
+            if player_score == top_score:
+                n_top_score += 1
+                        
         for player in players:
             player_score = player.get_score()
             player_played = player.get_played()
+            player_ties = player.get_ties()
             player_wins = player.get_wins()
-            player.set_played(player_played+1)
-            if  player_score >= top_score:
-                player.set_wins(player_wins+1)
+            new_played = player_played+1
+            player.set_played(new_played)
+            player.set_prop("played")
+            if player_score == top_score:
+                if n_top_score > 1:
+                    new_ties = player_ties + 1
+                    player.set_ties(new_ties)
+                    player.set_prop("ties")
+                else:
+                    new_wins = player_wins + 1
+                    player.set_wins(new_wins)
+                    player.set_prop("wins")
         self.update_score_window()
 
             
@@ -1480,7 +1607,7 @@ class SelectPlay:
         :prefix: leading text to identify place
                 default: none
         """
-        if not SlTrace.trace("trace_scores"):
+        if not SlTrace.trace("score"):
             return
         
         if prefix is None:
@@ -1489,9 +1616,22 @@ class SelectPlay:
             prefix += ":"
         for player in self.get_players():
             SlTrace.lg("%sscore: %d for %s"
-                        % (prefix, player.score, player))
-        
+                        % (prefix, player.score, player), "score")
 
+
+    def reset_score(self):
+        """ Reset multigame scores/stats
+        """
+        SlTrace.lg("reset_score")
+        for player in self.get_players():
+            player.set_wins(0)
+            player.set_played(0)
+            player.set_ties(0)
+        self.player_control.set_ctls()
+        if self.score_window is not None:
+            self.score_window.update_window()
+            
+             
     def set_score(self, score, player=None):
         """ Set player score
         :score: New score
@@ -1514,7 +1654,7 @@ class SelectPlay:
         scmd = self.get_cmd()
         prev_score = player.get_score()
         new_score = prev_score + len(squares)
-        SlTrace.lg("prev_score:%d new_score:%d %s" % (prev_score, new_score, player))
+        SlTrace.lg("prev_score:%d new_score:%d %s" % (prev_score, new_score, player), "score")
         self.set_score(new_score, player)
         self.trace_scores("after set_score(%d, %s)" % (new_score, player))
         scmd.add_prev_score(player, prev_score)

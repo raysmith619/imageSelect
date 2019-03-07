@@ -8,12 +8,12 @@ from tkinter import *
 from select_trace import SlTrace
 from trace_control import TraceControl
 from arrange_control import ArrangeControl
-from docutils.nodes import reference
+from select_game_control import SelectGameControl
 
 # Here, we are creating our class, Window, and inheriting from the Frame
 # class. Frame is a class from the tkinter module. (see Lib/tkinter/__init__)
 class SelectWindow(Frame):
-    CONTROL_NAME_PREFIX = "game_control"
+    CONTROL_NAME_PREFIX = "play_control"
 
     def __deepcopy__(self, memo=None):
         """ provide deep copy by just passing shallow copy of self,
@@ -97,9 +97,16 @@ class SelectWindow(Frame):
 
                                 # Trace control
         menubar.add_command(label="Trace", command=self.trace_control)
+        self.game_control = SelectGameControl()
         self.arrange_windows()
         self.master.bind( '<Configure>', self.win_size_event)
 
+
+    def get_game_control(self):
+        """ Retrieve game control to pass to SelectPlay
+        """
+        return self.game_control
+    
 
     def win_size_event(self, event):
         """ Window sizing event

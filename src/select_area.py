@@ -358,6 +358,14 @@ class SelectArea(object):
         
         return None     # No entry at this location
 
+
+    def destroy(self):
+        """ Relinquish 
+        """
+        for part in self.parts:
+            part.destroy()
+            
+            
     def display(self, parts=None):
         """ Display parts list
         :parts: list of parts to display

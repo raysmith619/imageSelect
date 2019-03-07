@@ -365,6 +365,14 @@ class PlayerControl(Toplevel):
             self.cur_player = self.get_next_player()
         return self.cur_player
 
+
+
+  
+    def get_player_prop_key(self, player):
+        """ Generate full properties name for this player
+        """
+        key = self.get_prop_key(player.id)
+        return key
         
     
     def get_players(self, all=False):
@@ -596,13 +604,20 @@ class PlayerControl(Toplevel):
         player.ctls_vars["steven"] = content
 
 
+    def set_ctls(self):
+        """ Update control/display from internal values
+        of those playing
+        """
+        for player in self.players.values():
+            if player.playing:
+                player.set_ctls()
+
+
     def set_vals(self):
         """ Read form, if displayed, and update internal values
         """
         for player in self.players.values():
-            pf = "playing"
-            player.set_val_from_ctl(pf)         # Force read from control field
-            is_playing = player.get_val(pf)
+            is_playing = player.playing
             for field in player.ctls_vars:
                 player.set_val_from_ctl(field)
                 field_ctl = player.ctls[field]
@@ -636,8 +651,8 @@ class PlayerControl(Toplevel):
         :played: to set
         """
         cplayer = self.players[player.id]
-        player.game = played        # Set possible copy
-        cplayer.game = played
+        player.played = played        # Set possible copy
+        cplayer.played = played
 
 
     def get_played(self, player):
@@ -648,14 +663,22 @@ class PlayerControl(Toplevel):
         return cplayer.played
 
 
-    def set_wins(self, player, wins):
-        """ Set player game centrally 
-        :player: to set
-        :wins: to set
+    def get_ties(self, player):
+        """ Get player game centrally 
+        :player: to get
         """
         cplayer = self.players[player.id]
-        player.game = wins        # Set possible copy
-        cplayer.game = wins
+        return cplayer.ties
+
+
+    def set_ties(self, player, ties):
+        """ Set player game centrally 
+        :player: to set
+        :ties: to set
+        """
+        cplayer = self.players[player.id]
+        player.ties = ties        # Set possible copy
+        cplayer.ties = ties
 
 
     def get_wins(self, player):
@@ -664,6 +687,16 @@ class PlayerControl(Toplevel):
         """
         cplayer = self.players[player.id]
         return cplayer.wins
+
+
+    def set_wins(self, player, wins):
+        """ Set player game centrally 
+        :player: to set
+        :wins: to set
+        """
+        cplayer = self.players[player.id]
+        player.wins = wins        # Set possible copy
+        cplayer.wins = wins
         
         
     def set_all_scores(self, score=0, only_playing=False):
@@ -702,7 +735,13 @@ class PlayerControl(Toplevel):
         if self.mw is not None:
             self.mw.destroy()
             self.mw = None
-    
+
+    def destroy(self):
+        """ relinquish resources
+        """
+        self.delete_window()
+        
+        
     
     def add(self):
         if "set" in self.call_d:

@@ -21,13 +21,34 @@ class ScoreWindow:
         ["played", "played", wd],
         ["wins", "wins", wd],
         ]
+    col_infos_wins = [
+        ["name", "name", wd],
+        ["label", "label", wd],
+        ["score", "score", wd],
+        ["played", "played", wd],
+        ["wins", "wins", wd],
+        ]
+    col_infos_ties = [
+        ["name", "name", wd],
+        ["label", "label", wd],
+        ["score", "score", wd],
+        ["played", "played", wd],
+        ["wins", "wins", wd],
+        ["ties", "ties", wd],
+        ]
     
     def __init__(self, play_control,
                 control_prefix=None,
+                show_ties=False,
                 ):
         """ Setup score /undo/redo window
         """
         self.play_control = play_control
+        self.show_ties = show_ties
+        if show_ties:
+            self.col_infos = ScoreWindow.col_infos_ties
+        else:
+            self.col_infos = ScoreWindow.col_infos
         self.mw = Toplevel()
         if control_prefix is None:
             control_prefix = self.CONTROL_NAME_PREFIX
@@ -68,6 +89,8 @@ class ScoreWindow:
             self.set_player_frame(player_frame, player, "score")
             self.set_player_frame(player_frame, player, "played")
             self.set_player_frame(player_frame, player, "wins")
+            if self.show_ties:
+                self.set_player_frame(player_frame, player, "ties")
 
         
         bw = 5
@@ -170,19 +193,19 @@ class ScoreWindow:
     def set_field_headings(self, field_headings_frame):
         """ Setup player headings, possibly recording widths
         """
-        col_infos = ScoreWindow.col_infos
+        col_infos = self.col_infos
         for info_idx, col_info in enumerate(col_infos):
             field_name = col_info[0]
             if len(col_info) >= 2:
                 heading = col_info[1]
             else:
                 heading = field_name
-            width = 20      # Hack
+            ###width = 20      # Hack
             if len(col_info) >= 3:
                 width = col_info[2]
             heading_label = Label(master=field_headings_frame,
                                   text=heading, anchor="w",
-                                  justify=LEFT,
+                                  justify=CENTER,
                                   width=width)
             heading_label.grid(row=0, column=info_idx, sticky=NSEW)
             field_headings_frame.columnconfigure(info_idx, weight=1)
@@ -195,7 +218,7 @@ class ScoreWindow:
         :player: player info
         :field: name of field
         """
-        col_infos = ScoreWindow.col_infos
+        col_infos = self.col_infos
         col_info = None     # Set if name found
         idx = 0             # Bumped after each check
         for cinfo in col_infos:
@@ -231,6 +254,8 @@ class ScoreWindow:
             self.set_player_frame_played(frame, player, value, width=width)
         elif field_name == "wins":
             self.set_player_frame_wins(frame, player, value, width=width)
+        elif field_name == "ties":
+            self.set_player_frame_ties(frame, player, value, width=width)
         else:
             raise SelectError("Unrecognized player field_name: %s" % field_name)    
 
@@ -277,6 +302,14 @@ class ScoreWindow:
         player.ctls["wins"] = val_entry
         player.ctls_vars["wins"] = content
 
+    def set_player_frame_ties(self, frame, player, value, width=None):
+        content = IntVar()
+        content.set(value)
+        val_entry = Entry(frame, textvariable=content, width=width)
+        val_entry.pack(side="left", expand=True)
+        player.ctls["ties"] = val_entry
+        player.ctls_vars["ties"] = content
+
 
 
     def destroy(self):
@@ -284,11 +317,17 @@ class ScoreWindow:
         """
         if self.mw is not None:
             self.mw.destroy()
+        self.mw = None
+        
         
     def delete_window(self):
         """ Handle window deletion
         """
-        self.play_control.close_score_window()
+        if self.play_control is not None:
+            self.play_control.close_score_window()
+        else:
+            self.destroy()
+        self.play_control = None
         
     
     def update_window(self):
@@ -307,15 +346,15 @@ class ScoreWindow:
             score_ctl_var = player.ctls_vars["score"]
             score = player.get_score()
             score_ctl_var.set(score)
-            SlTrace.lg("score: %d %s" % (score, player))
+            SlTrace.lg("score: %d %s" % (score, player), "score")
             played_ctl_var = player.ctls_vars["played"]
             played = player.get_played()
             played_ctl_var.set(played)
-            SlTrace.lg("played: %d %s" % (played, player))
+            SlTrace.lg("played: %d %s" % (played, player), "score")
             wins_ctl_var = player.ctls_vars["wins"]
             wins = player.get_wins()
             wins_ctl_var.set(wins)
-            SlTrace.lg("wins: %d %s" % (wins, player))
+            SlTrace.lg("wins: %d %s" % (wins, player), "score")
 
         
         

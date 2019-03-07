@@ -25,6 +25,7 @@ class SelectPlayer:
                  pause = 0.,
                  score = 0,
                  played = 0,
+                 ties = 0,
                  wins = 0,
                  ):
         """ Player attributes
@@ -55,6 +56,7 @@ class SelectPlayer:
         :score: Number of points in game
                 default: 0
         :played: Number of game played
+        :ties: Number of game ties 
         :wins: Number of game wins (leading/tieing all others)
         """
         self.control = control
@@ -83,6 +85,7 @@ class SelectPlayer:
         self.steven = stay_even
         self.score = score
         self.played = played
+        self.ties = ties
         self.wins = wins
         self.ctls = {}          # Dictionary of field control widgets
         self.ctls_vars = {}     # Dictionary of field control widget variables
@@ -115,6 +118,18 @@ class SelectPlayer:
         self.control.set_score(self, score)
 
 
+    def get_ties(self):
+        """ From centralized control: Get current ties
+        """
+        return self.control.get_ties(self)
+    
+    
+    def set_ties(self, ties):
+        """ Set current ties
+        """
+        self.control.set_ties(self, ties)
+
+
     def get_wins(self):
         """ From centralized control: Get current wins
         """
@@ -129,13 +144,14 @@ class SelectPlayer:
     def get_played(self):
         """ Get current played # TBD update as did get/set_score
         """
-        return self.played
+        return self.control.get_played(self)
+
     
     
     def set_played(self, played):
         """ Set current played
         """
-        self.played = played
+        self.control.set_played(self, played)
         
 
     def get_val(self, field_name):
@@ -149,6 +165,39 @@ class SelectPlayer:
         raise SelectError("SelectPlayerControlEntry.get_val(%s) - no entry: %s"
                            % (field_name, field))
 
+
+    def set_ctl_from_val(self, field_name):
+        """ Set player control var from value
+        :field_name: field name
+        """
+        if not hasattr(self, field_name):
+            raise SelectError("Player has no attribute %s" % field_name)
+        ctl_var = self.ctls_vars[field_name]
+        value = getattr(self, field_name)
+        ctl_var.set(value)
+        self.set_prop_val(field_name)           # Update properties
+
+
+    def set_ctls(self):
+        """ Set all control variables from internal values
+        """
+        for field in self.ctls_vars:
+            self.set_ctl_from_var(field)
+
+        """ Do fields not represented by control variables """
+        self.set_prop("played")
+        self.set_prop("wins")
+        self.set_prop("ties")
+        
+    def set_field_prop(self, field):
+        """ Set property for player based on player_control
+        """
+        
+        prop_key = self.get_prop_key(field)
+        value = getattr(self, field)
+        self.set_prop_val(prop_key, value)           # Update properties
+    
+        
     def set_val_from_ctl(self, field_name):
         """ Set player value from field
         Also updates player value properties
@@ -158,10 +207,10 @@ class SelectPlayer:
             raise SelectError("Player has no attribute %s" % field_name)
         value = self.ctls_vars[field_name].get()
         setattr(self, field_name, value)
-        self.set_prop_val(field_name)
+        self.set_prop(field_name)
 
 
-    def set_prop_val(self, field_name):
+    def set_prop(self, field_name):
         """ Update properties value for field, so that properties file
         will contain the updated value
         :field_name: field attribute name

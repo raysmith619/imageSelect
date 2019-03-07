@@ -265,9 +265,11 @@ class SlTrace:
         cls.lg(cls.lgsString)
         cls.lgsString = None # Flush pending
 
-    
+
     @classmethod
-    def onexit(cls):
+    def save_propfile(cls):
+        """ Save properties file - snapshot
+        """
         try:
             if cls.defaultProps is not None:
                 abs_propName = cls.defaultProps.get_path()
@@ -276,10 +278,15 @@ class SlTrace:
                 outf = open(abs_propName, "w")
                 cls.defaultProps.store(outf, abs_propName)
                 cls.defaultProps = None     # Flag as no longer available
+                outf.close()
         except IOError as e:
             tbstr = traceback.extract_stack()
-            cls.lg("Shutdown propName %s store failed %s - %s"
+            cls.lg("Save propName %s store failed %s - %s"
                     % (abs_propName, tbstr), str(e))
+    
+    @classmethod
+    def onexit(cls):
+        cls.save_propfile()
         try:
             if cls.logWriter is not None:
                 abs_logName = os.path.abspath(cls.logName)
