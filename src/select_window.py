@@ -24,6 +24,7 @@ class SelectWindow(Frame):
             
         
     # Define settings upon initialization. Here you can specify
+    ###@profile    
     def __init__(self,
                  master=None,
                  title=None,
@@ -125,10 +126,10 @@ class SelectWindow(Frame):
             Get location and size for properties if any
         """
         win_x = self.get_prop_val("win_x", 50)
-        if win_x < 0:
+        if win_x < 0 or win_x > 1600:
             win_x = 50
         win_y = self.get_prop_val("win_y", 50)
-        if win_y < 0:
+        if win_y < 0 or win_y > 1600:
             win_y = 50
         
         win_width = self.get_prop_val("win_width", self.master.winfo_width())

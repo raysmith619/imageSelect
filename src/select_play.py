@@ -121,7 +121,7 @@ class SelectPlay:
             if ActiveCheck.not_active():
                 break
             self.mw.update_idletasks()
-            self.mw.update()        
+            ###self.mw.update()        
             if self.running and self.run:
                 if self.first_time:
                     self.start_game()
@@ -416,7 +416,7 @@ class SelectPlay:
         
         row = rowcols[0]
         col = rowcols[1]
-        SlTrace.lg("make_new_edge: %s row=%d col=%d" % (dir, row, col))
+        SlTrace.lg("make_new_edge: %s row=%d col=%d" % (dir, row, col), "edge")
         edge = self.get_part(type="edge", sub_type=dir, row=row, col=col)
         if edge is None:
             SlTrace.lg("No edge(%s) at row=%d col=%d" % (dir, row, col))
@@ -594,7 +594,7 @@ class SelectPlay:
         self.set_new_player(player)
         text = "It's %s's turn." % player.name
         self.trace_scores("announce_player:")
-        SlTrace.lg(text)
+        SlTrace.lg(text, "player")
         self.add_message(text, color=player.color)
         self.do_cmd()       # Must display now
         if self.before_move is not None:
@@ -743,7 +743,7 @@ class SelectPlay:
                 now = datetime.now()
                 if  now >= message.end_time:
                     self.cur_message = None
-                    SlTrace.lg("End of message waiting")
+                    SlTrace.lg("End of message waiting", "message")
                     break
                 if self.mw is not None and self.mw.winfo_exists():
                     self.mw.update()
@@ -848,9 +848,9 @@ class SelectPlay:
         """ Delete message if present
         Usually called after wait time
         """
-        SlTrace.lg("Destroying timed message")
+        SlTrace.lg("Destroying timed message", "message")
         if self.cur_message is not None:
-            SlTrace.lg("Found message to destroy")
+            SlTrace.lg("Found message to destroy", "message")
             self.cur_message.destroy()
             self.cur_message = None
 
@@ -1099,6 +1099,8 @@ class SelectPlay:
             move = self.manual_moves.pop()
             self.new_edge(move)
             return True
+
+        self.mw.update()        
         
         return False
             
@@ -1121,7 +1123,7 @@ class SelectPlay:
             self.auto_play_negative(player)
         else:
             self.auto_play_random(player)
-        SlTrace.lg("auto_play player END: %s" % self.get_player())
+        SlTrace.lg("auto_play player END: %s" % self.get_player(), "player_trace")
         return True                         # Next move number
 
 
@@ -1298,9 +1300,10 @@ class SelectPlay:
         self.add_message("Game Over")
         self.do_cmd()
         self.pause_cmd()
-        if self.on_end is not None:
-            ###self.on_end()
-            self.mw.after(0, self.on_end)
+        self.running = False        # Stop this game
+        ###if self.on_end is not None:
+        ###    ###self.on_end()
+        ###    self.mw.after(0, self.on_end)
 
 
     def save_properties(self):
@@ -1516,7 +1519,7 @@ class SelectPlay:
                 plu = ""
             else:
                 plu = "s" 
-            SlTrace.lg("Square%s Completed" % (plu))
+            SlTrace.lg("Square%s Completed" % (plu), "square")
         else:
             next_player = self.get_next_player()      # Advance to next player
             SlTrace.lg("Next player: %s" % next_player, "player_trace")
@@ -1590,16 +1593,17 @@ class SelectPlay:
         else:
             text = ("%s completed %d squares with label %s"
                     % (player_name, len(squares), player_label))
-        SlTrace.lg(text)
-        SlTrace.lg("completing edge: %s" % edge)
+        if SlTrace.trace("square"):
+            SlTrace.lg(text)
+        SlTrace.lg("completing edge: %s" % edge, "square")
         self.annotate_squares(squares, player=player)
         self.update_score(player, squares=squares)
         self.trace_scores("after self.update_score")
         self.add_message(text, font_size=20, time_sec=1)
         text = ("%s gets another turn." % player_name)
-        SlTrace.lg(text)
+        SlTrace.lg(text, "move")
         self.add_message(text, font_size=20, time_sec=1)
-        SlTrace.lg("completed_square_end", "execute")
+        SlTrace.lg("completed_square_end", "square")
         self.trace_scores("completed_square end")
 
     def trace_scores(self, prefix=None):

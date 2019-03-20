@@ -374,7 +374,7 @@ class SelectCommandPlay(SelectCommand):
         self.user_module.insert_parts(self.new_parts.values())
         self.user_module.display_messages(self.new_messages)
         if self.new_score is not None:
-            SlTrace.lg("new_score %d: %s" % (self.new_score[1], self.new_score[0]))
+            SlTrace.lg("new_score %d: %s" % (self.new_score[1], self.new_score[0]), "score")
         self.user_module.update_score_from_cmd(self.new_score, self.prev_score)    
         self.display_update()
         self.user_module.display_print("execute(%s) AFTER"

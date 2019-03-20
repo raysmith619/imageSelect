@@ -1,0 +1,29 @@
+# gr_hello.py   07Mar2019   crs Author
+"""
+
+Put up a message
+Simplest graphics example I know.
+
+
+Simple testing from command line (without using this program):
+Checking to see python is there - thpe the following line:
+python --version
+Example:
+C:\Users\raysm>python --version
+Python 3.6.5 :: Anaconda, Inc.
+
+
+Checking to see tkinter is there - type the following line:
+python -m tkinter
+Example:
+C:\Users\raysm>python -m tkinter
+...Small dialog box should appear containing two buttons...
+"""
+import tkinter as tk    # Get tk modules (reference as tk.module_name
+
+
+tk.messagebox.showinfo("Hello", "Hello World!")
+
+top = tk.Tk()
+top.mainloop()
+

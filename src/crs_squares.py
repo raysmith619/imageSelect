@@ -6,8 +6,17 @@ Created on October 30, 2018
 import os
 import sys
 import time
+import traceback
 from tkinter import *    
 import argparse
+
+import  gc
+import objgraph
+import tracemalloc
+###gc.set_debug(gc.DEBUG_LEAK)
+snapshot1 = None
+snapshot2 = None
+
 from select_part import SelectPart
 from select_window import SelectWindow
 from select_play import SelectPlay
@@ -21,9 +30,9 @@ from select_command import SelectCommand
 from command_file import CommandFile
 from active_check import ActiveCheck
 
+loop_no = 0           # Label loop number, starting at 1
 sp = None
 game_control = None
-    
 def pgm_exit():
     ActiveCheck.clear_active()  # Disable activities
     quit()
@@ -132,6 +141,12 @@ ew_display= args.ew_display
 ew_select = args.ew_select
 ew_standoff = args.ew_standoff
 
+if SlTrace.trace("memory"):
+    tracemalloc.Filter(True, "select*")
+    tracemalloc.start()
+    tracemalloc.Filter(True, "select*")
+
+
 SelectPart.set_edge_width_cls(ew_display,
                           ew_select,
                           ew_standoff)
@@ -186,6 +201,7 @@ mw = Tk()
 mw.lift()
 mw.attributes("-topmost", True)
 
+###@profile    
 def setup_app(app_old):
     """ Setup / Resetup app window
     :app: current app instance
@@ -266,9 +282,13 @@ def setup_app(app_old):
             
     if not is_in_pgm_args("width"):        
         width = app.get_current_val("window_width", width)
+        if width < 100:
+            width = 100
     width = int(width)
     if not is_in_pgm_args("height"):
         height = app.get_current_val("window_height", height)
+        if height < 100:
+            height = 100
     height = int(height)
     
     if not is_in_pgm_args("nx"):
@@ -292,13 +312,13 @@ def setup_app(app_old):
 def before_move(scmd):
     global move_no_label
     
-    SlTrace.lg("before_move")
+    SlTrace.lg("before_move", "move")
     if SlTrace.trace("selected"):
         sp.list_selected("before_move")
 
     
 def after_move(scmd):
-    SlTrace.lg("after_move", "after_move")
+    SlTrace.lg("after_move", "move")
     if SlTrace.trace("selected"):
         sp.list_selected("selected after_move")
     
@@ -335,7 +355,9 @@ def end_game():
 
         
     
+###@profile    
 def set_squares_button():
+    global loop_no
     global first_set_app
     global app
     global board_frame, msg_frame, sqs, board_canvas
@@ -343,8 +365,21 @@ def set_squares_button():
     global n_rearrange_cycles, rearrange_cycle
     global players, sp
     global move_no_label
-    
+    global snapshot1, snapshot2         # tracemalloc instances
+    loop_no += 1 
+    SlTrace.lg("\nLoop %d" % loop_no)
+    SlTrace.lg("Memory Used: %.0f MB, Change: %.2f MB"
+                % (SlTrace.getMemory()/1.e6, SlTrace.getMemoryChange()/1.e6))
     SlTrace.lg("Squares Set Button", "button")
+    if SlTrace.trace("pgm_stack"):
+        stack = traceback.extract_stack()
+        SlTrace.lg("pgm_stack depth=%d" % len(stack))
+        if SlTrace.trace("pgm_stack_list"):
+            list_len = 14
+            print_list = traceback.format_list(stack)
+            for line in print_list[-list_len:]:
+                SlTrace.lg("  " + line)
+        
     app = setup_app(app)
     if board_canvas is not None:
         SlTrace.lg("delete board_canvas")
@@ -400,7 +435,7 @@ def set_squares_button():
     if sp is not None and sp.cur_message is not None:
         sp.cur_message.destroy()
         sp.msg = None
-    sqs = SelectSquares(board_canvas, nrows=ny, ncols=nx,
+    sqs = SelectSquares(board_canvas, mw=mw, nrows=ny, ncols=nx,
                         width=width, height=height,
                         check_mod=check_mod)
     sqs.display()
@@ -420,9 +455,47 @@ def set_squares_button():
     if show_score:
         show_score_window()
     first_set_app = False    
-    if run_game:
-        sp.running_loop()
+    if SlTrace.trace("memory"):
+        ###obj_list = objgraph.show_most_common_types(limit=20)
+        ###SlTrace.lg("objgraph=%s" % obj_list)    
+        snapshot = tracemalloc.take_snapshot()
+        top_stats = snapshot.statistics('lineno', True)
+        SlTrace.lg("[ Top 25 ]")
+        for stat in top_stats[:25]:
+            SlTrace.lg(str(stat))
+
+        nc = gc.collect()
+        SlTrace.lg("gc.collect=%d" % nc)
+        nc = gc.collect()
+        SlTrace.lg("gc.collect=%d" % nc)
         
+        ###obj_list = objgraph.show_most_common_types(limit=20)
+        ###SlTrace.lg("objgraph=%s" % obj_list)    
+        objgraph.show_growth(limit=20, file=SlTrace.getLogFile())
+        objgraph.show_growth(limit=20)
+        objgraph.get_new_ids(file=SlTrace.getLogFile())
+        objgraph.get_new_ids()
+        ###obj = objgraph.by_type('SelectPlayer')
+        ###objgraph.show_backrefs([obj], max_depth=10)
+        SlTrace.lg("gc.garbage:%s" % gc.garbage)
+        if snapshot1 is None and snapshot2 is None:
+            snapshot1 = tracemalloc.take_snapshot()
+        elif snapshot2 is None:
+            snapshot2 = tracemalloc.take_snapshot()
+        else:
+            snapshot1 = snapshot2
+            snapshot2 = tracemalloc.take_snapshot()
+            
+        if snapshot2 is not None:        
+            top_stats = snapshot2.compare_to(snapshot1, 'lineno', True)
+            SlTrace.lg("[ Top 25 differences]")
+            for stat in top_stats[:25]:
+                SlTrace.lg(str(stat))
+            snapshot1 = snapshot2
+            snapshot2 = None
+    if run_game:
+        mw.after(0, sp.running_loop)
+
         
 def show_score_window():
     """ Setup score /undo/redo window
@@ -487,4 +560,4 @@ def pause_cmd():
 set_squares_button()
 
 mainloop()
-print("After mainloop()")
+SlTrace.lg("After mainloop()")

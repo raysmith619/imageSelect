@@ -14,6 +14,7 @@ import time
 from datetime import datetime
 import sys
 import traceback
+import psutil
 
 from java_properties import JavaProperties
 from test.support import change_cwd
@@ -46,7 +47,9 @@ class SlTrace:
     traceAll = False # For "all" trace
     traceFlags = {} # tracing flag/levels
     recTraceFlags = {} # recorded
-
+    mem_used = 0        # Memory used as of last getMemory call
+    mem_used_change = 0 # Memory change as of last getMemory call   
+    
     @classmethod
     def setup(cls):
         dummy = 0
@@ -358,7 +361,24 @@ class SlTrace:
         """
         props = cls.defaultProps.get_properties()
         return sorted(props.keys())
-    
+
+    @classmethod
+    def getMemory(cls):
+        """ Get current memory usage for this process
+        """
+        process = psutil.Process(os.getpid())
+        mem = process.memory_info().rss  # in bytes
+        cls.mem_used_change = mem - cls.mem_used
+        cls.mem_used = mem
+        return cls.mem_used 
+
+    @classmethod
+    def getMemoryChange(cls):
+        """ Get current memory usage change since last
+        getMemory call NOTE: no check on memory done here
+        """
+        return cls.mem_used_change
+
 
     @classmethod
     def getPropPath(cls):
@@ -542,7 +562,15 @@ class SlTrace:
             cls.setProps()
         cls.defaultProps.setProperty(key, value)
 
-
+    @classmethod
+    def getLogFile(cls):
+        """ Returns output file to support situations
+        which can't be logged directly via lg
+        Note that no time stamps will be shown
+        """
+        return cls.setupLogging()
+    
+    
     @classmethod
     def getSourcePath(cls, fileName):
         """

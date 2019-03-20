@@ -3,11 +3,13 @@ import copy
 
 from select_error import SelectError
 from select_trace import SlTrace
-    
+###from memory_profiler import profile
+     
 class SelectPlayer:
     CONTROL_NAME_PREFIX = "player_control"
     id = 0          # Unique id
     
+    ###@profile
     def __init__(self,
                  control,           # player control
                  id = None,
@@ -165,7 +167,7 @@ class SelectPlayer:
         raise SelectError("SelectPlayerControlEntry.get_val(%s) - no entry: %s"
                            % (field_name, field))
 
-
+    ###@profile
     def set_ctl_from_val(self, field_name):
         """ Set player control var from value
         :field_name: field name
@@ -175,14 +177,15 @@ class SelectPlayer:
         ctl_var = self.ctls_vars[field_name]
         value = getattr(self, field_name)
         ctl_var.set(value)
-        self.set_prop_val(field_name)           # Update properties
+        self.set_prop(field_name)           # Update properties
 
 
+    ###@profile
     def set_ctls(self):
         """ Set all control variables from internal values
         """
         for field in self.ctls_vars:
-            self.set_ctl_from_var(field)
+            self.set_ctl_from_val(field)
 
         """ Do fields not represented by control variables """
         self.set_prop("played")
@@ -221,6 +224,7 @@ class SelectPlayer:
         SlTrace.setProperty(prop_key, prop_value)
 
 
+    ###@profile
     def __str__(self):
         """ Provide reasonable view of player
         """

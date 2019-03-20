@@ -18,6 +18,7 @@ Grammy    Gm       (.)      pink     white   (.)   ( )
 
 [Add] [Change] [Remove]
 """
+###from memory_profiler import profile
 
 
 from tkinter import *
@@ -32,6 +33,7 @@ class PlayerControl(Toplevel):
     DEF_WIN_X = 500
     DEF_WIN_Y = 300
     
+    ###@profile
     def __init__(self, ctlbase=None,
                 control_prefix=None,
                 title=None, display=True):
@@ -135,6 +137,7 @@ class PlayerControl(Toplevel):
         if display:
             self.control_display()
             
+    ###@profile
     def control_display(self):
         """ display /redisplay controls to enable
         entry / modification
@@ -224,6 +227,7 @@ class PlayerControl(Toplevel):
 
        
     
+    ###@profile
     def arrange_windows(self):
         """ Arrange windows
             Get location and size for properties if any
@@ -300,7 +304,7 @@ class PlayerControl(Toplevel):
                           % next_position)
         if set_player:    
             self.set_player(player)
-            SlTrace.lg("new player: %s previous: %s" % (player, prev_player))
+            SlTrace.lg("new player: %s previous: %s" % (player, prev_player), "player")
         return player
     
     
@@ -454,6 +458,7 @@ class PlayerControl(Toplevel):
         return heading
     
 
+    ###@profile
     def set_player_frame(self, frame, player, col_infos, idx):
         """ Create player info line
         :frame: players frame

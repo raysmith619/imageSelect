@@ -34,7 +34,6 @@ class SelectArea(object):
         SlTrace.lg("SelectArea __deepcopy__", "copy")
         return self
    
-
     def __init__(self, canvas, mw=None, image=None, rects=None,
                 show_moved=False, show_id=False,
                 highlight_limit=None,

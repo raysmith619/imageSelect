@@ -18,7 +18,8 @@ class SelectSquares(object):
     """
 
 
-    def __init__(self, canvas, nrows=10,
+    ###@profile    
+    def __init__(self, canvas, mw=None, nrows=10,
                   ncols=None,
                   width=None, height=None, tbmove=.1,
                   check_mod=None,
@@ -90,7 +91,7 @@ class SelectSquares(object):
                 rects_rows.append(row)
                 rects_cols.append(col)
         
-        self.area = SelectArea(canvas, tbmove=self.tbmove,
+        self.area = SelectArea(canvas, mw=mw, tbmove=self.tbmove,
                                check_mod=self.check_mod,
                                down_click_call=self.down_click_call,
                                highlight_limit=self.highlight_limit)
