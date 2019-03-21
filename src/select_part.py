@@ -67,7 +67,7 @@ class SelectPart(object):
     region_fill_highlight = "lightgray"   # Default edge highlight color
 
     part_id = 0          # Unique handle ID
-            
+    player_control = None       # Player access        
             
     @staticmethod
     def is_point_equal(pt1, pt2):
@@ -96,7 +96,17 @@ class SelectPart(object):
             
             part1 = SelectPart(part.sel_area, part_type="edge", rect=olap_rect)
         return olap_rect
-
+    
+    @classmethod
+    def get_player_control(cls):
+        if cls.player_control is None:
+            raise SelectError("SelectPart - no player_control")
+        return cls.player_control()
+    
+    @classmethod
+    def set_player_control(cls, player_control):
+        cls.player_control = player_control
+        
     @classmethod
     def get_edge_width_cls(cls, sz_type=SZ_DISPLAY):
         """ Return class edge width
@@ -946,6 +956,11 @@ class SelectPart(object):
             partno = 0
         return partno
 
+    def get_player(self):
+        """ Get current player
+        """
+        return self.player_control.get_player()
+    
 
     def get_corners(self):
         return self.get_parts(part_type="corner")
@@ -1480,6 +1495,8 @@ class SelectPart(object):
             self.check_mod(self, mod_type=SelectPart.MOD_BEFORE, desc="turn_on")
         self.turned_on = True
         self.invisible = False
+        if player is None:
+            player = self.get_player()
         self.player = player
         self.move_no = move_no
         if display:
