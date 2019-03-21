@@ -23,6 +23,7 @@ from select_play import SelectPlay
 from select_trace import SlTrace
 from arrange_control import ArrangeControl
 ###from select_region import SelectRegion
+from select_game_control import SelectGameControl
 from select_squares import SelectSquares
 from select_arrange import SelectArrange
 from player_control import PlayerControl
@@ -80,7 +81,7 @@ speed_step = -1     # Reduce all waits to this if 0 or greater - debugging, anal
 stroke_move = False # Support stroke move for touch screens
 width = 600         # Window width
 height = width      # Window height
-
+board_change = True # True iff board needs redrawing
 
 base_name = os.path.splitext(os.path.basename(sys.argv[0]))[0]
 SlTrace.setLogName(base_name)
@@ -202,34 +203,26 @@ mw.lift()
 mw.attributes("-topmost", True)
 
 ###@profile    
-def setup_app(app_old):
+def setup_app(game_conrol):
     """ Setup / Resetup app window
-    :app: current app instance
-    :returns: new app reference
+    :returns: app reference
     """
     global first_set_app
-    global mw, width, height, game_control
+    global mw, width, height
     global run_resets, min_xlen, nx, ny, loop, loop_after, show_ties 
     global speed_step
     global first_app_set
+    global board_change
     
-    if game_control is not None:
-        game_control.destroy()
-        game_control = None
-            
-    if app_old is not None:
-        app_old.destroy()
-        ###return app_old
-        
     app = SelectWindow(mw,
                     title="crs_squares",
                     pgmExit=play_exit,
                     cmd_proc=True,
                     cmd_file=None,
-                    arrange_selection=False
+                    arrange_selection=False,
+                    game_control=game_control
                     )
     
-    game_control = app.get_game_control()
     if first_set_app:
         if is_in_pgm_args("loop"):
             game_control.set_prop_val("running.loop", loop)
@@ -360,17 +353,21 @@ def set_squares_button():
     global loop_no
     global first_set_app
     global app
+    global game_control
     global board_frame, msg_frame, sqs, board_canvas
     global width, height, min_xlen, nx, ny
     global n_rearrange_cycles, rearrange_cycle
     global players, sp
     global move_no_label
     global snapshot1, snapshot2         # tracemalloc instances
+    global board_change
+    
     loop_no += 1 
     SlTrace.lg("\nLoop %d" % loop_no)
     SlTrace.lg("Memory Used: %.0f MB, Change: %.2f MB"
                 % (SlTrace.getMemory()/1.e6, SlTrace.getMemoryChange()/1.e6))
     SlTrace.lg("Squares Set Button", "button")
+
     if SlTrace.trace("pgm_stack"):
         stack = traceback.extract_stack()
         SlTrace.lg("pgm_stack depth=%d" % len(stack))
@@ -379,21 +376,9 @@ def set_squares_button():
             print_list = traceback.format_list(stack)
             for line in print_list[-list_len:]:
                 SlTrace.lg("  " + line)
-        
-    app = setup_app(app)
-    if board_canvas is not None:
-        SlTrace.lg("delete board_canvas")
-        board_canvas.delete()
-        board_canvas = None
-    if board_frame is not None:    
-        board_frame.destroy()
-        board_frame = None
-    if msg_frame is not None:    
-        msg_frame.destroy()
-        msg_frame = None
-    if sp is not None:
-        sp.destroy()
-        sp = None
+    if game_control is None:
+        game_control = SelectGameControl()    
+    app = setup_app(game_control)
     
     app.update_form()
         
@@ -423,29 +408,45 @@ def set_squares_button():
     if ylen < min_ylen:
         SlTrace.lg("ny=%d ylen(%.0f) set to %.0f" % (ny, ylen, min_ylen))
         ylen = min_ylen
-    board_frame = Frame(mw, width=width, height=height, bg="", colormap="new")
-    board_frame.pack()
-    msg_frame = Frame(mw)
-    msg_frame.pack(side="bottom")
-    
-    
-    board_canvas = Canvas(board_frame, width=width, height=height)
-    board_canvas.pack()
+
+    if board_change:
+        if board_canvas is not None:
+            SlTrace.lg("delete board_canvas")
+            board_canvas.delete()
+            board_canvas = None
+        if board_frame is not None:    
+            board_frame.destroy()
+            board_frame = None
+        if msg_frame is not None:    
+            msg_frame.destroy()
+            msg_frame = None
+        if sqs is not None:
+            sqs.destroy()
+            sqs = None
+        if sp is not None:
+            sp.destroy()
+            sp = None
+        board_frame = Frame(mw, width=width, height=height, bg="", colormap="new")
+        board_frame.pack()
+        msg_frame = Frame(mw)
+        msg_frame.pack(side="bottom")
+        board_canvas = Canvas(board_frame, width=width, height=height)
+        board_canvas.pack()
+        board_change = False
+    if sqs is None:
+        sqs = SelectSquares(board_canvas, mw=mw, nrows=ny, ncols=nx,
+                            width=width, height=height,
+                            check_mod=check_mod)
+        sqs.display()
             
-    if sp is not None and sp.cur_message is not None:
-        sp.cur_message.destroy()
-        sp.msg = None
-    sqs = SelectSquares(board_canvas, mw=mw, nrows=ny, ncols=nx,
-                        width=width, height=height,
-                        check_mod=check_mod)
-    sqs.display()
-    sp = SelectPlay(board=sqs, msg_frame=msg_frame,
-                    mw=mw, start_run=False, game_control=game_control,
-                    on_exit=pgm_exit,
-                    on_end=end_game,
-                    move_first=1, before_move=before_move,
-                    after_move=after_move,
-                    show_ties=show_ties)
+    if sp is None:
+        sp = SelectPlay(board=sqs, msg_frame=msg_frame,
+                        mw=mw, start_run=False, game_control=game_control,
+                        on_exit=pgm_exit,
+                        on_end=end_game,
+                        move_first=1, before_move=before_move,
+                        after_move=after_move,
+                        show_ties=show_ties)
     sp.set_stroke_move(stroke_move)
     if first_set_app:
         if run_resets:

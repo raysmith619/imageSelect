@@ -33,6 +33,7 @@ class SelectWindow(Frame):
                  cmd_proc=False,
                  cmd_file=None,
                  arrange_selection=True,
+                 game_control=None,
                  games=[],          # text, proc pairs
                  actions=[],
                  ):
@@ -51,6 +52,7 @@ class SelectWindow(Frame):
         self.control_prefix = control_prefix
         self.arrange_selection = arrange_selection
         self.pgmExit = pgmExit
+        self.game_control = game_control
         master.protocol("WM_DELETE_WINDOW", self.pgm_exit)
         self.games = games
         self.actions = actions
@@ -98,7 +100,6 @@ class SelectWindow(Frame):
 
                                 # Trace control
         menubar.add_command(label="Trace", command=self.trace_control)
-        self.game_control = SelectGameControl()
         self.arrange_windows()
         self.master.bind( '<Configure>', self.win_size_event)
 

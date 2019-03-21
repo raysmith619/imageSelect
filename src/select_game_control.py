@@ -54,9 +54,6 @@ class SelectGameControl(Toplevel):
         
         self.base_frame = top_frame     # Changed on use
         self.base_field = "game_control"
-        
-        
-        
         if display:
             self.control_display()
 
