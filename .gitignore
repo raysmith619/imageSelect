@@ -7,6 +7,7 @@ bin/
 tmp/
 *.tmp
 *.bak
+*mprofile*.dat
 *.swp
 *~.nib
 local.properties
