@@ -336,11 +336,21 @@ class SelectSquares(object):
                 raise SelectError("No part(id=%d) found %s"
                                    % (part.part_id, part))
                 continue
-            if d_part.row == 2:
-                pass
             d_part.display_clear()
             d_part.set(invisible=True)
-    
+
+
+    def reset(self):
+        """ Set board to beginning of game
+        """
+        regions = self.area.get_parts(pt_type="region")
+        self.remove_parts(regions)
+        edges = self.area.get_parts(pt_type="edge")
+        for edge in edges:
+            edge.display_clear()
+            edge.turn_off()
+        
+            
     def insert_parts(self, parts):
         """ Add new or changed parts
         Replaces part of same id, redisplaying

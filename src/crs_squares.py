@@ -23,13 +23,14 @@ from select_play import SelectPlay
 from select_trace import SlTrace
 from arrange_control import ArrangeControl
 ###from select_region import SelectRegion
-from select_game_control import SelectGameControl
 from select_squares import SelectSquares
 from select_arrange import SelectArrange
-from player_control import PlayerControl
 from select_command import SelectCommand
 from command_file import CommandFile
 from active_check import ActiveCheck
+from sc_game_control import SelectGameControl
+from sc_player_control import PlayerControl
+from sc_score_window import ScoreWindow
 
 loop_no = 0           # Label loop number, starting at 1
 sp = None
@@ -207,23 +208,29 @@ def setup_app(game_conrol):
     """ Setup / Resetup app window
     :returns: app reference
     """
-    global first_set_app
+    global app, first_set_app
     global mw, width, height
     global run_resets, min_xlen, nx, ny, loop, loop_after, show_ties 
     global speed_step
     global first_app_set
     global board_change
     
-    app = SelectWindow(mw,
-                    title="crs_squares",
-                    pgmExit=play_exit,
-                    cmd_proc=True,
-                    cmd_file=None,
-                    arrange_selection=False,
-                    game_control=game_control
-                    )
-    
     if first_set_app:
+        app = SelectWindow(mw,
+                        title="crs_squares",
+                        pgmExit=play_exit,
+                        cmd_proc=True,
+                        cmd_file=None,
+                        arrange_selection=False,
+                        game_control=game_control
+                        )
+        app.add_menu_command("NewGame", new_game)
+        app.add_menu_command("Players", show_players_window)
+        app.add_menu_command("Score", show_score_window)
+        app.add_menu_command("CmdFile", cmd_file)
+        app.add_menu_command("Run", run_cmd)
+        app.add_menu_command("Pause", pause_cmd)
+    
         if is_in_pgm_args("loop"):
             game_control.set_prop_val("running.loop", loop)
         else:
@@ -290,13 +297,6 @@ def setup_app(game_conrol):
         ny = app.get_current_val("figure_rows", ny)
         
 
-    
-    app.add_menu_command("NewGame", new_game)
-    app.add_menu_command("Players", show_players_window)
-    app.add_menu_command("Score", show_score_window)
-    app.add_menu_command("CmdFile", cmd_file)
-    app.add_menu_command("Run", run_cmd)
-    app.add_menu_command("Pause", pause_cmd)
         
         
     return app
@@ -442,19 +442,23 @@ def set_squares_button():
     if sp is None:
         sp = SelectPlay(board=sqs, msg_frame=msg_frame,
                         mw=mw, start_run=False, game_control=game_control,
+                        player_control=player_control,
                         on_exit=pgm_exit,
                         on_end=end_game,
                         move_first=1, before_move=before_move,
                         after_move=after_move,
                         show_ties=show_ties)
+        player_control.set_play_control(sp)
+        score_window.set_play_control(sp)
     sp.set_stroke_move(stroke_move)
     if first_set_app:
         if run_resets:
             sp.reset_score()
     if show_players:
         show_players_window()
-    if show_score:
-        show_score_window()
+    player_control.set_all_scores(0)
+    ###if show_score:
+    ###    show_score_window()
     first_set_app = False    
     if SlTrace.trace("memory"):
         ###obj_list = objgraph.show_most_common_types(limit=20)
@@ -494,6 +498,10 @@ def set_squares_button():
                 SlTrace.lg(str(stat))
             snapshot1 = snapshot2
             snapshot2 = None
+        """
+        Setup for next game
+        """
+    sp.reset()
     if run_game:
         mw.after(0, sp.running_loop)
 
@@ -557,7 +565,9 @@ def pause_cmd():
     if sp is not None:
         sp.pause_cmd()
 
-   
+player_control = PlayerControl(title="Player Control", display=True)
+game_control = SelectGameControl(title="Game Control", display=True)
+score_window = ScoreWindow(title="Score", player_control=player_control, display=True)   
 set_squares_button()
 
 mainloop()

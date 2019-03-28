@@ -18,11 +18,14 @@ from select_player import SelectPlayer
 from select_message import SelectMessage
 from active_check import ActiveCheck        
 from docutils.nodes import Part
-from select_score_window import ScoreWindow
+from sc_score_window import ScoreWindow
+from select_blinker_state import BlinkerMultiState
 
 class SelectPlay:
     def __init__(self, board=None, mw=None,
-                 game_control = None,
+                 player_control=None,
+                 game_control=None,
+                 score_window=None,
                  msg_frame=None,
                  start_run=True,
                  on_end=None,
@@ -30,7 +33,7 @@ class SelectPlay:
                  run_check_ms=10,
                  auto_play_check_ms=10,
                  cmd_stream=None,
-                 btmove=.1, player_control=None, move_first=None,
+                 btmove=.1, move_first=None,
                  before_move=None, after_move=None,
                  show_ties=False):
         """ Setup play
@@ -46,7 +49,9 @@ class SelectPlay:
         :show_ties: ties are shown
         """
         self.playing = True     # Hack to suppress activity on exit event
-        self.score_window = None    # Set iff window displayed
+        if score_window is None:
+            score_window = ScoreWindow()
+        self.score_window = score_window
         if game_control is None:
             raise SelectError("SelectPlay: manditory game_control is missing")
         self.game_control = game_control
@@ -117,19 +122,32 @@ class SelectPlay:
         self.game_control_updates()
         if run_check_ms is not None:
             self.run_check_ms = run_check_ms
+        BlinkerMultiState.enable()
         while self.running:
+            SlTrace.lg("running_loop", "running_loop")
             if ActiveCheck.not_active():
                 break
+            SlTrace.lg("running_loop active", "running_loop")
             self.mw.update_idletasks()
-            ###self.mw.update()        
             if self.running and self.run:
+                SlTrace.lg("running_loop self.running and self.run", "running_loop")
                 if self.first_time:
                     self.start_game()
                     self.first_time = False
                 else:
+                    SlTrace.lg("running_loop self.start_move", "running_loop")
                     if self.start_move():
+                        SlTrace.lg("running_loop successful start_move", "running_loop")
                         self.next_move_no()
+                    SlTrace.lg("running_loop after start_move", "running_loop")
+            else:
+                self.mw.update()        
+                
+        SlTrace.lg("running_loop after loop", "running_loop")
+        BlinkerMultiState.disable()
+                
         if self.on_end is not None:
+            SlTrace.lg("running_loop doing on_end", "running_loop")
             self.mw.after(0, self.on_end)       # After run processing
 
 
@@ -550,7 +568,7 @@ class SelectPlay:
         if self.score_window is not None:
             self.score_window.destroy()
                         
-        self.score_window = ScoreWindow(self)
+        self.score_window = ScoreWindow()
 
 
     def close_score_window(self):
@@ -704,7 +722,7 @@ class SelectPlay:
         if self.mw is None:
             return
         if self.score_window is None:
-            self.score_window = ScoreWindow(self, show_ties=self.show_ties)
+            self.score_window = ScoreWindow(play_control=self.player_control, show_ties=self.show_ties)
         self.score_window.update_window()
     
     
@@ -871,14 +889,19 @@ class SelectPlay:
 
     
 
-    def get_cmd(self, action=None, has_prompt=False, undo_unit=False):
+    def get_cmd(self, action=None, has_prompt=False, undo_unit=False,
+                flush=False):
         """ Get current command, else new command
         :action: - start new command with this action name
                 defalt use current cmd
         :has_prompt: True cmd contains prompt, starting cmd sequence
         :undo_unit: True - this command is single undoable unit
                     default: False
+        :flush: execute any command in progress
+                default: False
         """
+        if flush and self.select_cmd is not None:
+            self.do_cmd()
         if action is None:
             cmd = self.select_cmd
             if cmd is None:
@@ -1421,7 +1444,7 @@ class SelectPlay:
         self.player_control.set_all_scores(0, only_playing=True)
         SlTrace.lg("start_game", "execute")
         self.set_move_no(0)
-        self.get_cmd("start_game")
+        self.get_cmd("start_game", flush=True)
         self.add_message("It's A New Game",
                          time_sec=1)
         ###self.set_move_no(1)
@@ -1515,11 +1538,12 @@ class SelectPlay:
             self.add_prev_parts(edge)
             edge.highlight_clear()          # ??? Should we just set flag??
             self.completed_square(edge, regions)
-            if len(regions) == 1:
+            nsq = len(regions)
+            if nsq == 1:
                 plu = ""
             else:
                 plu = "s" 
-            SlTrace.lg("Square%s Completed" % (plu), "square")
+            SlTrace.lg("%d Square%s Completed" % (nsq, plu), "square")
         else:
             next_player = self.get_next_player()      # Advance to next player
             SlTrace.lg("Next player: %s" % next_player, "player_trace")
@@ -1623,6 +1647,13 @@ class SelectPlay:
                         % (prefix, player.score, player), "score")
 
 
+    def reset(self):
+        """ Reset to new game settings
+        """
+        if self.board is not None:
+            self.board.reset()
+        
+
     def reset_score(self):
         """ Reset multigame scores/stats
         """
@@ -1659,7 +1690,7 @@ class SelectPlay:
         prev_score = player.get_score()
         new_score = prev_score + len(squares)
         SlTrace.lg("prev_score:%d new_score:%d %s" % (prev_score, new_score, player), "score")
-        self.set_score(new_score, player)
+        self.set_score(new_score, player=player)
         self.trace_scores("after set_score(%d, %s)" % (new_score, player))
         scmd.add_prev_score(player, prev_score)
         scmd.add_new_score(player, new_score)

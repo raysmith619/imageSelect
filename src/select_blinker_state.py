@@ -2,73 +2,15 @@
 from select_trace import SlTrace
 from active_check import ActiveCheck
 
-class BlinkerState:
-    """ Blinking item state
-    """
-    def __init__(self, part, tag=None,
-                 on_time=None, off_time=None, on_fill="black", off_fill="white"):
-        self.part = part
-        self.canvas = part.sel_area.canvas
-        self.tag = tag
-        self.on_state=True
-        if on_time is None:
-            on_time = .2
-        self.on_time = on_time
-        if off_time is None:
-            off_time = on_time
-        self.off_time = off_time
-        self.on_fill = on_fill
-        self.off_fill=off_fill
-
-    def is_blinking(self):
-        """ Check if still blinking
-        """
-        if self.part is None:
-            return False
-        
-        return True
-                        
-    def blink_on(self):
-        if ActiveCheck.not_active():
-            return  False   # We're at the end
-        
-        if not self.is_blinking():
-            return False
-        
-        if not self.on_state:
-            self.canvas.itemconfigure(self.tag, fill=self.on_fill)
-            self.on_state = True
-        self.canvas.after(int(1000*self.on_time), self.blink_off)
-        return True
-                        
-    def blink_off(self):
-        if ActiveCheck.not_active():
-            return  False # We're at the end
-        
-        if not self.is_blinking():
-            return False
-        
-        if self.on_state:
-            self.canvas.itemconfigure(self.tag, fill=self.off_fill)
-            self.on_state = False
-        self.canvas.after(int(1000*self.off_time), self.blink_on)
-        return True
-
-
-    def stop(self):
-        """ Stop blinking
-        """
-        if self.tag is not None:
-            self.canvas.delete(self.tag)
-            self.tag = None
-
 
 class BlinkerMultiState:
     """ Blinking multi tag group item state
     
     The group will display for on_time then rotated one group and redisplayed
     """
-
+    enable_blinking = True
+    
+    
     def __deepcopy__(self, memo=None):
         """ provide deep copy by just passing shallow copy of self,
         avoiding tkparts inside sel_area
@@ -76,7 +18,15 @@ class BlinkerMultiState:
         SlTrace.lg("SelectArea __deepcopy__", "copy")
         return self
 
+    @classmethod
+    def enable(cls, enable=True):
+        cls.blinking_enabled = enable
     
+    @classmethod
+    def disable(cls):
+        cls.enable(enable=False)
+        
+        
     def __init__(self, part, tagtags=None,
                  on_time=None):
         """ Setup multi state blinker
@@ -105,6 +55,13 @@ class BlinkerMultiState:
         """
         if self.part is None:
             return False
+        
+        if not self.enable_blinking:
+           return False
+        
+        if SlTrace.trace("no_blink"):
+            return False
+        
         if SlTrace.trace("dbg"):
             SlTrace.lg("is_blinking")
             
@@ -132,6 +89,9 @@ class BlinkerMultiState:
         self.first_fill_index = 1
         if self.first_fill_index >= len(self.multitags):
             self.first_fill_index = 0            # Wrap around
+        si = self.first_fill_index
+        SlTrace.lg("blink_on_first first_fill_index=%d in %s"
+                   % (si, self.part), "blink_on_first")
         self.canvas.after(int(1000*self.on_time), self.blink_on_next)
         return True
  

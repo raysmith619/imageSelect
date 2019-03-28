@@ -7,7 +7,7 @@ from active_check import ActiveCheck
 from select_error import SelectError
 from select_loc import SelectLoc
 from select_part import SelectPart
-from select_blinker_state import BlinkerState, BlinkerMultiState
+from select_blinker_state import BlinkerMultiState
 
 
 
@@ -143,12 +143,7 @@ class SelectEdge(SelectPart):
         if isinstance(tagtags, list):
             self.blink_multi(tagtags, on_time=on_time)
         else:
-            on_fill = self.sel_area.canvas.itemcget(tagtags, "fill")
-            self.blinker = BlinkerState(part=self, tag=tagtags,
-                                            on_time=on_time, off_time=off_time,
-                                            on_fill=on_fill, off_fill=off_fill)
-            self.blinker.blink_on()      # Just to prime the delay
-
+            raise SelectError("Only supporting multi tag blink")
 
     def blink_multi(self, tagtags, on_time=.25):
         """ Blink list of tag lists rotating every on_time

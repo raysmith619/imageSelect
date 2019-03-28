@@ -35,6 +35,8 @@ class TraceControl(Toplevel):
         tc_all_button.pack(side="left", fill="both", expand=True)
         tc_none_button = Button(master=self.top_frame, text="NONE", command=self.select_none)
         tc_none_button.pack(side="left", fill="both", expand=True)
+        tc_bpt_button = Button(master=self.top_frame, text="BPT", command=self.breakpoint)
+        tc_bpt_button.pack(side="left", fill="both", expand=True)
         tc_frame = Frame(self.tc_mw)
         tc_frame.pack(side="top", fill="both", expand=True)
         self.tc_frame = tc_frame
@@ -99,6 +101,13 @@ class TraceControl(Toplevel):
         for flag in sorted(self.strace.getTraceFlags()):   # In display order
             self.set_trace_level(flag, 0)
 
+
+    def breakpoint(self):
+        """ Force immediate breakpoint - enter debugger
+        """
+        import pdb
+        SlTrace.lg("Breakpoint")
+        pdb.set_trace()
                 
     def select_button(self, event):
         flag = self.flag_by_cb[event.widget]

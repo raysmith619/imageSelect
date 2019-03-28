@@ -1,4 +1,4 @@
-# player_control.py 05Nov2018
+# sc_player_control.py 05Nov2018
 """
 Player control window layout
 Omitted to save room:
@@ -26,20 +26,29 @@ import random
 from select_error import SelectError
 from select_trace import SlTrace
 from select_player import SelectPlayer
-
+from select_control_window import SelectControlWindow
     
-class PlayerControl(Toplevel):
+class PlayerControl(SelectControlWindow):
     CONTROL_NAME_PREFIX = "player_control"
     DEF_WIN_X = 500
     DEF_WIN_Y = 300
     
-    ###@profile
-    def __init__(self, ctlbase=None,
-                control_prefix=None,
-                title=None, display=True):
+        
+            
+    def _init(self, *args, title=None, control_prefix=None,
+              play_control=None, **kwargs):
+        """ Initialize subclassed SelectControlWindow singleton
+        """
+        if title is None:
+            title = "Player Control"
+        if control_prefix is None:
+            control_prefix = PlayerControl.CONTROL_NAME_PREFIX
+        self.play_control = play_control
+        super()._init(*args,
+                      title=title, control_prefix=control_prefix,
+                      **kwargs)    
         """ Display / Control of players
         :ctlbase: base control object
-        
         values stored in properties file
         All values stored under "player_control.".<player_id>
         The player_id is constructed by replacing all
@@ -62,11 +71,6 @@ class PlayerControl(Toplevel):
             steven              float
         """
         ###Toplevel.__init__(self, parent)
-        self.mw = None      # Set when displayed
-        self.ctlbase = ctlbase
-        if control_prefix is None:
-            control_prefix = self.CONTROL_NAME_PREFIX
-        self.control_prefix = control_prefix
         """ Setup control names found in properties file
         Updated as new control entries are added
         """
@@ -130,12 +134,8 @@ class PlayerControl(Toplevel):
                     elif player_attr == "color_bg":
                         player.icolor2 = player.color_bg
                     self.players[player_id] = player
-        
-        if title is None:
-            title = "Player Control"
-        self.title = title
-        
-        if display:
+    
+        if self.display:
             self.control_display()
             
     ###@profile
@@ -143,18 +143,12 @@ class PlayerControl(Toplevel):
         """ display controls to enable
         entry / modification
         """
-        if self.mw is not None:
+        if self._is_displayed:
             return
-        
-        self.mw = Toplevel()
 
-        self.mw.title(self.title)
-        top_frame = Frame(self.mw)
-        self.mw.protocol("WM_DELETE_WINDOW", self.delete_window)
-        top_frame.pack(side="top", fill="x", expand=True)
-        self.top_frame = top_frame
+        super().control_display()       # Do base work        
         
-        controls_frame = Frame(top_frame)
+        controls_frame = Frame(self.top_frame)
         controls_frame.pack(side="top", fill="x", expand=True)
         self.controls_frame = controls_frame
         players_frame = Frame(controls_frame)
@@ -203,8 +197,6 @@ class PlayerControl(Toplevel):
         """ Contol buttons """
         control_button_frame = Frame(controls_frame)
         control_button_frame.pack(side="top", fill="x", expand=True)
-        set_button = Button(master=control_button_frame, text="Set", command=self.set)
-        set_button.pack(side="left", expand=True)
         add_button = Button(master=control_button_frame, text="Add",
                             command=self.add_player)
         add_button.pack(side="left", expand=True)
@@ -214,79 +206,6 @@ class PlayerControl(Toplevel):
 
         self.mw.bind( '<Configure>', self.win_size_event)
         self.arrange_windows()
-
-
-    def win_size_event(self, event):
-        """ Window sizing event
-        """
-        win_x = self.mw.winfo_x()
-        win_y = self.mw.winfo_y()
-        win_width = self.mw.winfo_width()
-        win_height = self.mw.winfo_height()
-        self.set_prop_val("win_x", win_x)
-        self.set_prop_val("win_y", win_y)
-        self.set_prop_val("win_width", win_width)
-        self.set_prop_val("win_height", win_height)
-
-
-       
-    
-    ###@profile
-    def arrange_windows(self):
-        """ Arrange windows
-            Get location and size for properties if any
-        """
-        win_x = self.get_prop_val("win_x", self.DEF_WIN_X)
-        if win_x < 0:
-            win_x = 50
-        win_y = self.get_prop_val("win_y", self.DEF_WIN_Y)
-        if win_y < 0:
-            win_y = 50
-        
-        win_width = self.get_prop_val("win_width", self.mw.winfo_width())
-        win_height = self.get_prop_val("win_height", self.mw.winfo_height())
-        geo_str = "%dx%d+%d+%d" % (win_width, win_height, win_x, win_y)
-        self.mw.geometry(geo_str)
-        
-    
-    def get_prop_key(self, name):
-        """ Translate full  control name into full Properties file key
-        """        
-        key = self.control_prefix + "." + name
-        return key
-
-    def get_prop_val(self, name, default):
-        """ Get property value as (string)
-        :name: field name
-        :default: default value, if not found
-        :returns: "" if not found
-        """
-        prop_key = self.get_prop_key(name)
-        prop_val = SlTrace.getProperty(prop_key)
-        if prop_val is None:
-            return default
-        
-        if isinstance(default, int):
-            if prop_val == "":
-                return 0
-           
-            return int(prop_val)
-        elif isinstance(default, float):
-            if prop_val == "":
-                return 0.
-           
-            return float(prop_val)
-        else:
-            return prop_val
-
-    def set_prop_val(self, name, value):
-        """ Set property value as (string)
-        :name: field name
-        :value: default value, if not found
-        """
-        prop_key = self.get_prop_key(name)
-        SlTrace.setProperty(prop_key, str(value))
-
 
 
     def get_next_player(self, set_player=True):
