@@ -12,7 +12,6 @@ from select_command_manager import SelectCommandManager
 """
 Command processing, especially undo/Redo
 """
-import player_control
 
 """
 Command Definition
@@ -28,7 +27,7 @@ class SelectCommandPlay(SelectCommand):
         """ provide deep copy as a custimized "constructor",
         reducing recusion
         """
-        new_copy = SelectCommandPlay(self.action,  has_prompt=self.has_prompt, undo_unit=self.undo_unit)
+        new_copy = SelectCommandPlay(self.action,  cmd_num=self.cmd_num, has_prompt=self.has_prompt, undo_unit=self.undo_unit)
         new_copy.prev_move_no = self.prev_move_no
         new_copy.new_move_no = self.new_move_no
         new_copy.prev_keycmd_edge_mark = self.prev_keycmd_edge_mark   # Usually no action
@@ -49,20 +48,27 @@ class SelectCommandPlay(SelectCommand):
     """ Command object, sufficient to contain do/undo
     for SelectPlay
     """
-    def __init__(self, action_or_cmd, has_prompt=False, undo_unit=False):
+    def __init__(self, action_or_cmd, cmd_num=None,
+                 has_prompt=False, undo_unit=False):
         """ Initialize do/undo Structure
         :action_or_cmd:
             str - type of command:
                 "move" - player move
         :cmd: command
+        :cmd_num: command number default: unique generated
         :has_prompt: True - contains move prompt
                     default: False
         :undo_unit:  True - completes an undoable sequence
                     default: False
+        "cmd_num: command number, default: generated
         """
-        SelectCommand.__init__(self, action_or_cmd, has_prompt=has_prompt,
+        SelectCommand.__init__(self, action_or_cmd, cmd_num=cmd_num,
+                               has_prompt=has_prompt,
                                undo_unit=undo_unit)
         if isinstance(action_or_cmd, str):
+            if cmd_num is None:
+                cmd_num = self.command_manager.next_cmd_no()
+            self.cmd_num = cmd_num
             self.prev_move_no = None
             self.new_move_no = None
             self.prev_keycmd_edge_mark = None   # Usually no action
@@ -79,13 +85,11 @@ class SelectCommandPlay(SelectCommand):
             self.new_score = None   # new (player,score) if any change
         else:
             """ Hack because super does not appear to populate self """
-            no = self.no
             self = select_copy(action_or_cmd)
-            self.no = no
             
 
     def __str__(self):
-        st = "\n cmd[" + str(self.no) + "]:" + self.action
+        st = "\n cmd[" + str(self.cmd_num) + "]:" + self.action
         st += " move: %d" % self.move_no
         if self.has_prompt:
             st += " has_prompt"
@@ -285,14 +289,16 @@ class SelectCommandPlay(SelectCommand):
         if ActiveCheck.not_active():
             return
         
+    
+    
         command_manager = self.command_manager
         user_module = command_manager.user_module
         user_module.update_score_window()
  
-        for part_id in self.prev_parts:
-            part = user_module.get_part(part_id)
-            part.display_clear()
-        
+        ###for part_id in self.prev_parts:
+        ###    part = user_module.get_part(part_id)
+        ###    part.display_clear()
+
         prev_selects = list(self.prev_selects.values())
         new_selects = list(self.new_selects.values())
         if SlTrace.trace("selected"):
@@ -308,17 +314,21 @@ class SelectCommandPlay(SelectCommand):
         if SlTrace.trace("selected"):
             self.list_cmd("display_update after select_set")
             self.list_selected("display_update after select_set")        
+        display_keys = list(self.new_parts.keys())
         display_parts = list(self.new_parts.values())
-        """ Add in selection changes if not already in display list """
-        for part in self.prev_parts.values():
-            if part.part_id not in display_parts:
-                display_parts.append(part)
-        for part in prev_selects:
-            if part.part_id not in display_parts:
-                display_parts.append(part)
-        for part in new_selects:
-            if part.part_id not in display_parts:
-                display_parts.append(part)
+
+        ###for part in self.prev_parts.values():
+        ###    if part.part_id not in display_parts:
+        ###        display_parts.append(part)
+        for key in self.prev_selects.keys():
+            if key not in display_keys:
+                display_keys.append(key)
+                display_parts.append(self.prev_selects[key])
+        for key in self.new_selects.keys():
+            if key not in display_parts:
+                display_keys.append(key)
+                display_parts.append(self.new_selects[key])
+        
         pdos = self.display_order(display_parts)    # Order display
         for new_part in pdos:
             part_id = new_part.part_id
@@ -450,7 +460,6 @@ class SelectCommandPlay(SelectCommand):
         except:
             SlTrace.lg("SelectCommandPlay failure")
             return False
-        self.command_manager.set_move_no(cmd.new_move_no)
         temp = cmd.new_move_no
         cmd.new_move_no = cmd.prev_move_no
         cmd.prev_move_no = temp

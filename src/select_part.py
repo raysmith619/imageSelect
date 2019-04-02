@@ -604,13 +604,13 @@ class SelectPart(object):
         """ Set single entry, first clearing any current entries,
         :text: letter (or string) to add
         :x: - x location of letter's center
-                default: square's center
+                default: dot's center
         :y: - y location of letter's center
-                default: square's center
+                default: dot's center
         :color: text color, default: black
-        :height: height of text, default: just fits in square
-        :width: width of text, default: just fits in square
-        :display: True display square default: do display
+        :height: height of text, default: just fits in dot
+        :width: width of text, default: just fits in dot
+        :display: True display dot default: do display
         """
         self.clear_centered_texts()
         self.add_centered_text(text, x=x, y=y,
@@ -639,14 +639,14 @@ class SelectPart(object):
         color_bg = ct.color_bg
         width = ct.width
         
-        """ Add letter in center of square
+        """ Add letter in center of dot
         :text: letter (or string) to add
         :x: - x location of letter's center
-                default: square's center
+                default: dot's center
         :y: - y location of letter's center
-                default: square's center
+                default: dot's center
         :color: text color, default: black
-        :height: height of text, default: just fits in square
+        :height: height of text, default: just fits in dot
         """
         if text is None:
             text = "?"
@@ -739,7 +739,8 @@ class SelectPart(object):
         if self.centered_text:
             for ct in self.centered_text:
                 self.clear_centered_text(ct)
-            
+            del(self.centered_text)
+            self.centered_text = []
             
     def clear_centered_text(self, ct):
         """ Clear centered text display, leaving info
@@ -1363,16 +1364,16 @@ class SelectPart(object):
     def add_centered_text(self, text, x=None, y=None,
                           color=None, color_bg=None,
                           height=None, width=None, display=True):
-        """ Add letter in center of square
+        """ Add letter in center of dot
         :text: letter (or string) to add
         :x: - x location of letter's center
-                default: square's center
+                default: dot's center
         :y: - y location of letter's center
-                default: square's center
+                default: dot's center
         :color: text color, default: black
-        :height: height of text, default: just fits in square
-        :width: width of text, default: just fits in square
-        :display: True display square default: do display
+        :height: height of text, default: just fits in dot
+        :width: width of text, default: just fits in dot
+        :display: True display dot default: do display
         """
         centered_text = CenteredText(self, text, x=x, y=y,
                                      color=color, color_bg=color_bg,

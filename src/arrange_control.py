@@ -238,10 +238,10 @@ class ArrangeControl(Toplevel):
         win_label = Label(master=controls_frame, text="Rearrange", anchor='w')
         win_label.pack(side="top", fill="both", expand=True)
         arrange_arranged_list = self.set_list(ctl_name="arrange_arranged",
-                selection_list = ["square", "2x2", "3x3", "4x4", "row", "column"])
+                selection_list = ["dot", "2x2", "3x3", "4x4", "row", "column"])
         self.add_color_ctl(master=controls_frame, ctl_name="arrange_arranged", text="arranged",
                            selection=arrange_arranged_list,
-                           selection_default= "square")
+                           selection_default= "dot")
         arrange_extent_list = self.set_list(ctl_name="arrange_extent",
                 selection_list = ["row", "column", "all"])
         self.add_color_ctl(master=controls_frame, ctl_name="arrange_extent", text="extent",
@@ -378,7 +378,7 @@ class ArrangeControl(Toplevel):
     def add_rearrange_ctl(self, master=None, ctl_name=None, text=None, value=None,
                       selection=None, selection_default=None):
         """ Setup rearrange control
-        This is the rearrangement of existing squares/parts in the preesisting setup.
+        This is the rearrangement of existing dots/parts in the preesisting setup.
         These operations should be less computaionally expensive and therefore faster
         than the recreation of the whole figure.
         

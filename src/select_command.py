@@ -10,31 +10,34 @@ from select_fun import *
 """
 Command processing, especially undo/Redo
 """
-import player_control
 
 """
 Command Definition
 """
 class SelectCommand:
-    no = 0
+    cmd_num = 0
     move_no = 0         # Game move number
     command_manager = None      # Must already be setup
     
     """ Command object, sufficient to contain do/undo
     """
-    def __init__(self, action_or_cmd, has_prompt=False, undo_unit=False):
+    def __init__(self, action_or_cmd, cmd_num=None,
+                 has_prompt=False, undo_unit=False):
         """ Initialize do/undo Structure
         :action_or_cmd:
             str - type of command:
                 "move" - player move
         :cmd: command
+        :cmd_num: command number default: generated
         :has_prompt: True - has move prompt  Default: False
         :undo_unit:  True - completes an undoable sequence
                     default: False
         """
         if self.command_manager is None:
             raise SelectError("No SelectCommandManager")
-        self.no = self.command_manager.next_cmd_no()
+        if cmd_num is None:
+            cmd_num = self.command_manager.next_cmd_no()
+        self.cmd_num = cmd_num
         self.prev_move_no = self.command_manager.get_prev_move_no()
         self.move_no = self.prev_move_no
         self.has_prompt = has_prompt

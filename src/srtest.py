@@ -237,7 +237,7 @@ def set_figure_button():
     for part in sr.get_parts():
         if part.is_corner():
             part.set(display_shape="circle",
-            ###part.set(display_shape="square",
+            ###part.set(display_shape="dot",
                     color="blue",
                     edge_width_display=s_width,
                     edge_width_select=s_width,

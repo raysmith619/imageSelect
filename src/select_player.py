@@ -35,7 +35,7 @@ class SelectPlayer:
         :id:   Unique id (count)
             default: generate new id
         :name: playter's name
-        :label: square labeling letter/string
+        :label: dot labeling letter/string
                 default: Upercase first character of name
         :playing: True - player is playing game
                 default: not playing

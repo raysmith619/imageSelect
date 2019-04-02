@@ -10,7 +10,7 @@ import copy
 from select_fun import *
 from select_trace import SlTrace
 from select_error import SelectError
-from player_control import PlayerControl        
+from sc_player_control import PlayerControl        
 from select_command_play import SelectCommandPlay
 from select_command_manager import SelectCommandManager
 from select_part import SelectPart
@@ -20,6 +20,7 @@ from active_check import ActiveCheck
 from docutils.nodes import Part
 from sc_score_window import ScoreWindow
 from select_blinker_state import BlinkerMultiState
+from gr_input import gr_input
 
 class SelectPlay:
     def __init__(self, board=None, mw=None,
@@ -35,9 +36,10 @@ class SelectPlay:
                  cmd_stream=None,
                  btmove=.1, move_first=None,
                  before_move=None, after_move=None,
-                 show_ties=False):
+                 show_ties=False,
+                 undo_len=100):
         """ Setup play
-        :board: playing board (SelectSquares)
+        :board: playing board (SelectDots)
         :mw: Instance of Tk, if one, else created here
         :start_run: Start running default: True
         :run_check_ms: Time for running loop check
@@ -47,6 +49,8 @@ class SelectPlay:
         :before_move: function, if any, to call before move
         :after_move: function, if any, to call after move
         :show_ties: ties are shown
+        :undo_len: maximum length of undo
+            default: 100
         """
         self.playing = True     # Hack to suppress activity on exit event
         if score_window is None:
@@ -63,7 +67,8 @@ class SelectPlay:
             self.msg_frame.pack(side="bottom")
         self.msg_frame = msg_frame
         self.cmd_stream = cmd_stream
-        self.command_manager = SelectCommandManager(self)
+        self.undo_len = undo_len
+        self.command_manager = SelectCommandManager(self, undo_len=self.undo_len)
         SelectCommandPlay.set_management(self.command_manager, self)
         if mw is None:
             mw = Tk()
@@ -105,6 +110,8 @@ class SelectPlay:
         self.keycmd_args = []
         self.keycmd_edge_mark = None        # Current marker edge
         self.multi_key_cmd_str = None       # Current multi key cmd str
+        self.kbd_input_flag = False           # In kbd_input gathering
+        self.gr_input_top = None       # Set if input
         self.on_end = on_end
         if self.start_run:
             self.mw.after(self.run_check_ms, self.running_loop)
@@ -175,13 +182,17 @@ class SelectPlay:
 
 
     def key_press(self, event):
+        if self.kbd_input_flag:
+            self.kbd_input_add_char(event.char)
+            return
+        
         self.key_press_event(event)
 
 
     def key_press_event(self, event):
         """ Keyboard key press processor
         """
-        if not SlTrace.trace("keycmd"):
+        if False and not SlTrace.trace("keycmd"):
             return
         
         ec = event.char
@@ -260,6 +271,50 @@ class SelectPlay:
                 self.keycmd_edge = False
             return
 
+        if ec_keysym == "h":        # Help
+            SlTrace.lg("""
+            space - Add multiline blank delimiter
+            a - add delimiter with one line of text
+            b - list blinking parts
+            c - clear current part display
+            d - (re)display current part
+            f - rurn current part off
+            h - Output this help listing
+            i - list part, edges of current location
+            g - List on square(s) touching current edge
+            l - List highlighted parts
+            n - turn on current part
+            
+            r - redo undone command
+            s - list selected parts
+            t - list parts that are turned on
+            v - set current edge
+            Selection movement directions:
+                UP
+                Down
+                Left
+                Right
+                "plus" - rotate selection clockwise
+                "minus" - rotate selection counter clockwise
+            
+            """)
+            return
+
+        if ec_keysym == "space":
+            SlTrace.lg("_" * 50 + "\n\n\n")
+            return
+        
+        if ec_keysym == "a":
+            SlTrace.lg("_" * 50 + "\n\n\n")
+            annotation = self.kbd_input("Enter annotation:")
+            SlTrace.lg(annotation)
+            return
+       
+                
+        if ec_keysym == "b":    # List "Blinking" parts
+            self.list_blinking("blinking")
+            
+            
         if ec_keysym == "l":
             part_ids = list(self.board.area.highlights)
             SlTrace.lg("Highlighted parts(%d):" % len(part_ids))
@@ -287,7 +342,7 @@ class SelectPlay:
             return
 
             
-        if ec == "v" or ec == "h":
+        if ec == "v":
             self.keycmd_edge = True
             self.keycmd_edge_dir = ec
             self.keycmd_args = []
@@ -322,6 +377,37 @@ class SelectPlay:
                     part.turn_on(player=self.get_player())
                 elif ec == "f":                 # turn off
                     part.turn_off()
+
+
+    def kbd_input(self, prompt=None):
+        """ Get line from graphics window
+        """
+        inp = self.gr_input(prompt)
+        '''
+        if prompt is not None:
+            print(prompt, file=sys.stderr)
+        self.kbd_input_str = ""
+        self.kbd_input_flag = True
+        while self.kbd_input_flag:
+            self.mw.update_idletasks()
+            self.mw.update()
+            
+        return self.kbd_input_str
+        '''
+        return inp
+    
+            
+    def kbd_input_add_char(self, c):
+        if c == "\r" or c == "\n":
+            self.kbd_input_flag = False
+            print("\n", sep="", end="", file=sys.stderr)
+            return
+        print(c, sep="", end="", file=sys.stderr)
+        self.kbd_input_str += c
+        
+        
+    def list_blinking(self, prefix=None):
+        self.board.area.list_blinking(prefix=prefix)
 
     
     def list_selected(self, prefix=None):
@@ -546,7 +632,8 @@ class SelectPlay:
         for square in squares:
             square.part_check(prefix="annotate_squares")
         for square in squares:
-            sc = select_copy(square)
+            ###sc = select_copy(square)
+            sc = square
             self.add_prev_parts(square)
             sc.set_centered_text(player.label,
                                      color=player.color,
@@ -894,7 +981,7 @@ class SelectPlay:
         """ Get current command, else new command
         :action: - start new command with this action name
                 defalt use current cmd
-        :has_prompt: True cmd contains prompt, starting cmd sequence
+        :has_prompt: True cmd contains prompt
         :undo_unit: True - this command is single undoable unit
                     default: False
         :flush: execute any command in progress
@@ -1054,7 +1141,7 @@ class SelectPlay:
             
         if self.ignore_if_busy():
             return False
-
+        self.clear_highlighted()
         return self.command_manager.undo()
 
 
@@ -1503,8 +1590,9 @@ class SelectPlay:
 
     def new_edge(self, edge):
         """ Process new edge selection
-                1. Adjust edge apperance appropriately
+                1. Adjust edge apperence appropriately
                 2. Announced new edge creation by user
+                3. Make command undo unit
         :edge: updated edge component
         """
         SlTrace.lg("new_edge player: %s" % self.get_player(), "player_trace")
@@ -1519,8 +1607,9 @@ class SelectPlay:
         SlTrace.lg("New edge %s by %s"
                     % (edge, prev_player), "new_edge")
         self.complete_cmd()                     # Complet current command if one
-        scmd = self.get_cmd("new_edge")
+        scmd = self.get_cmd("new_edge", undo_unit=True)
         scmd.set_prev_player(prev_player)
+        ###edge.highlight_clear()                  # So undo won't re-highlight
         scmd.add_prev_parts(edge)               # Save previous edge state 
         self.mark_edge(edge, prev_player, move_no=scmd.move_no)
         self.add_new_parts(edge)
@@ -1543,7 +1632,7 @@ class SelectPlay:
                 plu = ""
             else:
                 plu = "s" 
-            SlTrace.lg("%d Square%s Completed" % (nsq, plu), "square")
+            SlTrace.lg("%d Dot%s Completed" % (nsq, plu), "square")
         else:
             next_player = self.get_next_player()      # Advance to next player
             SlTrace.lg("Next player: %s" % next_player, "player_trace")
@@ -1557,7 +1646,10 @@ class SelectPlay:
         self.enable_moves()
         self.trace_scores("new_edge end:")
         SlTrace.lg("new_edge END player: %s" % self.get_player(), "player_trace")
-       
+
+
+    def clear_highlighted(self, parts=None, display=True):
+        self.board.area.clear_highlighted(parts=parts, display=display)
 
     def clear_redo(self):
         """ Clear redo (i.e. undo_stack for possible redo)
@@ -1722,4 +1814,33 @@ class SelectPlay:
         :parts: parts to be env_added
         """
         self.board.insert_parts(parts)
+
+
+    def gr_input(self, prompt="Enter"):
+       
+        def ok_cmd():
+            """ Function called  upon "OK" button
+            """
+            self.gr_input_entry_text = self.gr_input_entry_var.get()    # Retrieve
+            self.gr_input_reading = False
+            
+            
+        if self.gr_input_top is None:
+            self.gr_input_entry_var = StringVar() # Holds the entry text
+            self.gr_input_top = Toplevel(self.mw)
+            mw = self.gr_input_top
+            label = Label(mw, text=prompt)    # Create Label with prompt
+            label.pack(side=LEFT)
+        
+            entry = Entry(mw, textvariable=self.gr_input_entry_var, bd=3)        # Create Entry space on right
+            entry.pack(side=LEFT, expand=True, fill=BOTH)
+        
+            button = Button(mw, text="OK", command=ok_cmd, fg="blue", bg="light gray")
+            button.pack(side=RIGHT)
+        self.gr_input_entry_var.set("")
+        self.gr_input_reading = True    
+        while self.gr_input_reading:
+            ###self.mw.update_idletasks()
+            self.mw.update()
+        return self.gr_input_entry_text
             

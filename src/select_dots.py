@@ -3,16 +3,16 @@ Created on Oct 30, 2018
 
 @author: raysmith
 Creation and Manipulation of the grid (dots and squares)
-of the old squares game
+of the old dots game
 """
 from select_trace import SlTrace
 from select_error import SelectError
 from select_area import SelectArea
 from select_part import SelectPart
-from player_control import PlayerControl
+from sc_player_control import PlayerControl
 from docutils.nodes import Part
 
-class SelectSquares(object):
+class SelectDots(object):
     """
     classdocs
     """
@@ -260,7 +260,7 @@ class SelectSquares(object):
         """ Report new edge added
         :edge: - edge that was added
         """
-        SlTrace.lg("SelectSquares.new_edge: edge=%s" % (edge), "new_edge")
+        SlTrace.lg("SelectDots.new_edge: edge=%s" % (edge), "new_edge")
         if self.new_edge_call is not None:
             self.new_edge_call(edge)
         self.area.stroke_info.setup()      # Reset stroke search
@@ -330,6 +330,7 @@ class SelectSquares(object):
         Only clears display, leaving part in place
         :parts: list of parts to be removed
         """
+        return          # aLL changes reflected by insert
         for part in parts:
             d_part = self.area.get_part(id=part.part_id)
             if d_part is None:
@@ -344,7 +345,8 @@ class SelectSquares(object):
         """ Set board to beginning of game
         """
         regions = self.area.get_parts(pt_type="region")
-        self.remove_parts(regions)
+        for region in regions:
+            region.display_clear()
         edges = self.area.get_parts(pt_type="edge")
         for edge in edges:
             edge.display_clear()

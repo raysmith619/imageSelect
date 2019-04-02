@@ -70,7 +70,32 @@ class SelectEdge(SelectPart):
         c1x, c1y, c3x, c3y = self.get_rect()        # Vales are modified if appropriate
         loc = self.loc
         SlTrace.lg("%s: %s at %s" % (self.part_type, self, str(loc)), "display")
-        if self.highlighted or self.is_selected():
+        if self.highlighted:
+            if SlTrace.trace("edge_highlighted"):
+                SlTrace.lg("selected %s" % self, "edge_highlighted")
+            if self.turned_on:
+                if self.on_highlighting:
+                    if self.player is not None:     # Check if indicators on
+                        self.display_indicator(player=self.player)
+                        self.blink(self.display_multi_tags)
+
+                else:
+                    c1x,c1y,c3x,c3y = self.get_rect(enlarge=True)
+                    self.highlight_tag = self.sel_area.canvas.create_rectangle(
+                                        c1x, c1y, c3x, c3y,
+                                        fill=SelectPart.edge_fill_highlight)
+                    self.blink(self.highlight_tag, off_fill="red")
+            else:
+                if self.off_highlighting:
+                    self.display_indicator(fills=["purple", "darkgray", "orange"])
+                    self.blink(self.display_multi_tags)
+                else:
+                    c1x,c1y,c3x,c3y = self.get_rect()
+                    self.display_clear()
+                   
+        elif self.is_selected():
+            if SlTrace.trace("edge_selected"):
+                SlTrace.lg("selected %s" % self, "edge_selected")
             if self.turned_on:
                 if self.on_highlighting:
                     if self.player is not None:     # Check if indicators on
@@ -92,6 +117,8 @@ class SelectEdge(SelectPart):
                     self.display_clear()
                    
         else:           # Not highlighted
+            if SlTrace.trace("edge_unselected"):
+                SlTrace.lg("unselected %s" % self, "edge_unselected")
             self.display_clear()
             c1x, c1y, c3x, c3y = self.get_rect()
             if self.is_turned_on():

@@ -23,7 +23,7 @@ from select_play import SelectPlay
 from select_trace import SlTrace
 from arrange_control import ArrangeControl
 ###from select_region import SelectRegion
-from select_squares import SelectSquares
+from select_dots import SelectDots
 from select_arrange import SelectArrange
 from select_command import SelectCommand
 from command_file import CommandFile
@@ -74,6 +74,7 @@ loop_after = 5      # If looping, delay in seconds
 min_xlen = 10       # Minimum xlen(pixels) and ylen
 nx = 5              # Number of x divisions
 ny = nx             # Number of y divisions
+playing = None       # If present comma separated list of playing (labels)
 run_game = True		# Run game upon starting
 show_id = False     # Display component id numbers
 show_players = True # Display players info/control
@@ -97,6 +98,7 @@ trace = ""
 
 run_resets = True      # Each program run resets scores
 show_ties = False
+undo_len=200           # Undo length (Note: includes message mcd
 
 parser = argparse.ArgumentParser()
 
@@ -109,6 +111,7 @@ parser.add_argument('--loop_after', type=float, dest='loop_after', default=loop_
 parser.add_argument('--min_xlen=', type=int, dest='min_xlen', default=min_xlen)
 parser.add_argument('--nx=', type=int, dest='nx', default=nx)
 parser.add_argument('--ny=', type=int, dest='ny', default=ny)
+parser.add_argument('--playing=', dest='playing', default=playing)
 parser.add_argument('--run_game', type=str2bool, dest='run_game', default=run_game)
 parser.add_argument('--show_id', type=str2bool, dest='show_id', default=show_id)
 parser.add_argument('--show_players', type=str2bool, dest='show_players', default=show_players)
@@ -116,6 +119,7 @@ parser.add_argument('--show_score', type=str2bool, dest='show_score', default=sh
 parser.add_argument('--speed_step', type=float, dest='speed_step', default=speed_step)
 parser.add_argument('--stroke_move', type=str2bool, dest='stroke_move', default=stroke_move)
 parser.add_argument('--trace', dest='trace', default=trace)
+parser.add_argument('--undo_len', type=int, dest='undo_len', default=undo_len)
 parser.add_argument('--width=', type=int, dest='width', default=width)
 parser.add_argument('--height=', type=int, dest='height', default=height)
 args = parser.parse_args()             # or die "Illegal options"
@@ -129,6 +133,7 @@ min_xlen = args.min_xlen
 nx = args.nx
 ny = args.ny
 nsq = nx * ny
+playing = args.playing
 show_id = args.show_id
 show_players = args.show_players
 show_score = args.show_score
@@ -137,16 +142,14 @@ stroke_move = args.stroke_move
 trace = args.trace
 if trace:
     SlTrace.setFlags(trace)
+undo_len = args.undo_len
 width = args.width
 height = args.height
 ew_display= args.ew_display
 ew_select = args.ew_select
 ew_standoff = args.ew_standoff
 
-if SlTrace.trace("memory"):
-    tracemalloc.Filter(True, "select*")
-    tracemalloc.start()
-    tracemalloc.Filter(True, "select*")
+memory_trace = False    # Set true when tracing
 
 
 SelectPart.set_edge_width_cls(ew_display,
@@ -217,7 +220,7 @@ def setup_app(game_conrol):
     
     if first_set_app:
         app = SelectWindow(mw,
-                        title="crs_squares",
+                        title="crs_dots",
                         pgmExit=play_exit,
                         cmd_proc=True,
                         cmd_file=None,
@@ -270,15 +273,15 @@ def setup_app(game_conrol):
             game_control.set_ctl("viewing.rows", ny)
         else:
             ny = game_control.get_prop_val("viewing.rows", ny)
-    else:
-        loop = game_control.get_prop_val("running.loop", loop)
-        loop_after = game_control.get_prop_val("running.loop_after", loop_after)
-        speed_step = game_control.get_prop_val("running.speed_step", speed_step)
-        run_resets = game_control.get_prop_val("scroring.run_resets", run_resets)
-        show_ties = game_control.get_prop_val("scoring.show_ties", show_ties)
-        min_xlen = game_control.get_prop_val("viewing.min_xlen", min_xlen)    
-        nx = game_control.get_prop_val("viewing.columns", nx)    
-        ny = game_control.get_prop_val("viewing.rows", ny)
+
+    loop = game_control.get_prop_val("running.loop", loop)
+    loop_after = game_control.get_prop_val("running.loop_after", loop_after)
+    speed_step = game_control.get_prop_val("running.speed_step", speed_step)
+    run_resets = game_control.get_prop_val("scroring.run_resets", run_resets)
+    show_ties = game_control.get_prop_val("scoring.show_ties", show_ties)
+    min_xlen = game_control.get_prop_val("viewing.min_xlen", min_xlen)    
+    nx = game_control.get_prop_val("viewing.columns", nx)    
+    ny = game_control.get_prop_val("viewing.rows", ny)
             
     if not is_in_pgm_args("width"):        
         width = app.get_current_val("window_width", width)
@@ -349,7 +352,7 @@ def end_game():
         
     
 ###@profile    
-def set_squares_button():
+def set_dots_button():
     global loop_no
     global first_set_app
     global app
@@ -366,7 +369,7 @@ def set_squares_button():
     SlTrace.lg("\nLoop %d" % loop_no)
     SlTrace.lg("Memory Used: %.0f MB, Change: %.2f MB"
                 % (SlTrace.getMemory()/1.e6, SlTrace.getMemoryChange()/1.e6))
-    SlTrace.lg("Squares Set Button", "button")
+    SlTrace.lg("Dots Set Button", "button")
 
     if SlTrace.trace("pgm_stack"):
         stack = traceback.extract_stack()
@@ -434,7 +437,7 @@ def set_squares_button():
         board_canvas.pack()
         board_change = False
     if sqs is None:
-        sqs = SelectSquares(board_canvas, mw=mw, nrows=ny, ncols=nx,
+        sqs = SelectDots(board_canvas, mw=mw, nrows=ny, ncols=nx,
                             width=width, height=height,
                             check_mod=check_mod)
         sqs.display()
@@ -447,7 +450,8 @@ def set_squares_button():
                         on_end=end_game,
                         move_first=1, before_move=before_move,
                         after_move=after_move,
-                        show_ties=show_ties)
+                        show_ties=show_ties,
+                        undo_len=undo_len)
         player_control.set_play_control(sp)
         score_window.set_play_control(sp)
     sp.set_stroke_move(stroke_move)
@@ -463,6 +467,12 @@ def set_squares_button():
     if SlTrace.trace("memory"):
         ###obj_list = objgraph.show_most_common_types(limit=20)
         ###SlTrace.lg("objgraph=%s" % obj_list)    
+        global memory_trace
+        if not memory_trace:
+            tracemalloc.Filter(True, "select*")
+            tracemalloc.start()
+            tracemalloc.Filter(True, "select*")
+            memory_trace = True
         snapshot = tracemalloc.take_snapshot()
         top_stats = snapshot.statistics('lineno', True)
         SlTrace.lg("[ Top 25 ]")
@@ -532,7 +542,7 @@ def new_game():
     """ Start new game
     """
     SlTrace.lg("Starting New Game")
-    mw.after(0, set_squares_button)
+    mw.after(0, set_dots_button)
 
 
 
@@ -566,9 +576,11 @@ def pause_cmd():
         sp.pause_cmd()
 
 player_control = PlayerControl(title="Player Control", display=True)
+if playing is not None:
+    player_control.set_playing(playing)
 game_control = SelectGameControl(title="Game Control", display=True)
 score_window = ScoreWindow(title="Score", player_control=player_control, display=True)   
-set_squares_button()
+set_dots_button()
 
 mainloop()
 SlTrace.lg("After mainloop()")

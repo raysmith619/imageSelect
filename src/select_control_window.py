@@ -120,26 +120,18 @@ class SelectControlWindow(Toplevel):
     """
     def set(self):
         self.set_vals()
-        if self.play_control is not None:
-            self.play_control.set("Set")
 
     
     def reset(self):
         self.set_vals()
-        if self.play_control is not None:
-            self.play_control.reset("Reset")
 
     
     def undo(self):
         self.set_vals()
-        if self.play_control is not None:
-            self.play_control.reset("Undo")
 
     
     def redo(self):
         self.set_vals()
-        if self.play_control is not None:
-            self.play_control.reset("Redo")
 
     
     def set_vals(self):

@@ -17,14 +17,16 @@ Command manager
 class SelectCommandManager:
     """ Manipulate command redo/undo
     """
-    def __init__(self, user_module):
+    def __init__(self, user_module, undo_len=100):
         """ Setup command processing (undo/redo
         :user_module: module which desires command undo/redo
+        :undo_len: maximum undo length
         """
-        self.no = 0
+        self.cmd_num = 0
         self.move_no = 0
 
         self.user_module = user_module
+        self.undo_len = undo_len
         self.current_command = None
         self.command_stack = []         # Commands completed, which can be undone
         self.undo_stack = []            # Commands which have been undone, which can be redone
@@ -33,8 +35,8 @@ class SelectCommandManager:
     def next_cmd_no(self):
         """ Provide next unique command number
         """
-        self.no += 1
-        return self.no
+        self.cmd_num += 1
+        return self.cmd_num
     
     def next_move_no(self, inc=None):
         """ Provide next move number
@@ -112,6 +114,8 @@ class SelectCommandManager:
                 return False
             
             cmd = self.command_stack.pop()
+            if cmd.new_parts:
+                SlTrace.lg("undo cmd with new_parts")
             res = cmd.undo()
             if not res:
                 SlTrace.lg("Undo failed")
@@ -136,7 +140,7 @@ class SelectCommandManager:
                 return res
                         
             SlTrace.lg("undo till has_prompt", "execute")
-
+            SlTrace.lg("undo till undo_unit", "execute")
      
     def redo(self):
         """ Redo commands till
@@ -163,19 +167,19 @@ class SelectCommandManager:
         
             if cmd.undo_unit:
                 SlTrace.lg("redo: undo_unit")
+                lud = self.undo_stack[-1]
+                if lud.has_prompt:
+                    if lud.new_messages:
+                        for msg in lud.new_messages:
+                            SlTrace.lg("Show pending latest message %s" % lud)
+                            lud.user_module.do_message(msg)
+                    if SlTrace.trace("execute_undo_stack"):
+                        self.cmd_undo_stack_print("undo stack AFTER redo")                        
+                    return res
                 return res
 
-            lud = self.undo_stack[-1]
-            if lud.has_prompt:
-                if lud.new_messages:
-                    for msg in lud.new_messages:
-                        SlTrace.lg("Show pending latest message %s" % lud)
-                        lud.user_module.do_message(msg)
-                if SlTrace.trace("execute_undo_stack"):
-                    self.cmd_undo_stack_print("undo stack AFTER redo")                        
-                return res
                         
-            SlTrace.lg("redo till has_prompt", "execute")
+            SlTrace.lg("continue redo till an undo_unit", "execute")
     
     
     def repeat(self):
@@ -189,8 +193,16 @@ class SelectCommandManager:
     
     
     def save_command(self, bcmd):
-        self.command_stack.append(bcmd)
-        self.cmd_stack_print("save_command", "execute_stack")
+        """ Save the most recent undo_len commands
+        for possible undo
+        """
+        while len(self.command_stack) >= self.undo_len:
+            if not self.command_stack:
+                break
+            self.command_stack.pop()
+        if len(self.command_stack) < self.undo_len:    
+            self.command_stack.append(bcmd)
+            self.cmd_stack_print("save_command", "execute_stack")
 
 
     def set_move_no(self, move_no=None):

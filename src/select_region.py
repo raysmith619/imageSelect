@@ -136,7 +136,7 @@ class SelectRegion(SelectPart):
         if fill is None:
             fill = 'PeachPuff3'
         SlTrace.lg("region fill=%s" % fill, "get_color")
-        self.display_clear()
+        ###self.display_clear()
         if SlTrace.trace("region_rect"):
             SlTrace.lg("region: %d c1x=%d c1y=%d c3x=%d c3y=%d"
                        % (self.partno, c1x, c1y, c3x, c3y))

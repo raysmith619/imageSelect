@@ -712,6 +712,24 @@ class SelectArea(object):
             self.motion_bind_id = None
 
     
+    def list_blinking(self, prefix=None):
+        if prefix is None:
+            prefix = ""
+        else:
+            prefix = prefix + " "
+        part_ids = list(self.parts_by_id)
+        n_on = 0
+        for part_id in part_ids:
+            part = self.get_part(id=part_id)
+            if part.blinker is not None:
+                n_on += 1
+        SlTrace.lg("%s parts blinking on(%d of %d):" % (prefix, n_on, len(part_ids)))
+        for part_id in part_ids:
+            part = self.get_part(id=part_id)
+            if part.blinker is not None:
+                SlTrace.lg("    %s" % (part))
+
+    
     def list_selected(self, prefix=None):
         if prefix is None:
             prefix = ""
@@ -875,6 +893,18 @@ class SelectArea(object):
             
         return False
 
+    def clear_highlighted(self, parts=None, display=True):
+        """ Clear highlighted parts
+        :parts: parts to clear default: ALL
+        :display: True display after default: True
+        """
+        if parts is None:
+            parts = []
+            for highlight in self.highlights.values():
+                parts.append(highlight.part)
+        for part in parts:
+            part.highlight_clear(display=display)
+            
 
     def highlight_clear(self, parts=None, others=False, display=True):
         """ Clear highlighted parts
@@ -927,9 +957,8 @@ class SelectArea(object):
         if SlTrace.trace("selected"):
             self.list_selected("select_clear BEFORE")
         for part in parts:
-            part_id = part.part_id
-            if part_id in self.selects:
-                del self.selects[part_id]
+            if part.part_id in self.selects:
+                del(self.selects[part.part_id])
         if SlTrace.trace("selected"):
             self.list_selected("select_clear AFTER")
         

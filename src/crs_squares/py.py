@@ -14,7 +14,7 @@ from select_play import SelectPlay
 from select_trace import SlTrace
 from arrange_control import ArrangeControl
 ###from select_region import SelectRegion
-from select_squares import SelectSquares
+from select_dots import SelectSquares
 from select_arrange import SelectArrange
 from player_control import PlayerControl
 from select_command import SelectCommand
@@ -116,7 +116,7 @@ frame = None
         
 mw = Tk()
 app = SelectWindow(mw,
-                title="crs_squares Testing",
+                title="crs_dots Testing",
                 pgmExit=pgm_exit,
                 cmd_proc=True,
                 cmd_file=None,
@@ -184,7 +184,7 @@ def redo():
         return res
     
     
-def set_squares_button():
+def set_dots_button():
     global frame, sqs
     global width, height, nx, ny
     global n_rearrange_cycles, rearrange_cycle
@@ -314,7 +314,7 @@ def new_game():
     """ Start new game
     """
     SlTrace.lg("Starting New Game")
-    set_squares_button()
+    set_dots_button()
 
 
 
@@ -355,6 +355,6 @@ app.add_menu_command("Score", show_score_window)
 app.add_menu_command("CmdFile", cmd_file)
 app.add_menu_command("Run", run_cmd)
 app.add_menu_command("Pause", pause_cmd)
-set_squares_button()
+set_dots_button()
 
 mainloop()

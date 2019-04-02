@@ -60,7 +60,7 @@ class SelectArrange:
         self.restore = self.arrctl.get_current_val("arrange_restore", "random")
         self.modify = self.arrctl.get_current_val("arrange_modify", "replace")
         self.number_cycle = self.arrctl.get_current_val("arrange_number", 1)
-        self.arranged = self.arrctl.get_current_val("arrange_arranged", "square")
+        self.arranged = self.arrctl.get_current_val("arrange_arranged", "dot")
         nsq = self.nx * self.ny
         if self.arranged == "square":
             if nsq >= 81:

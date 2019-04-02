@@ -273,6 +273,27 @@ class PlayerControl(SelectControlWindow):
         """
         self.cur_player = player
 
+    def set_playing(self, playing=None):
+        """ Set players playing via
+        comma separated string
+        :playing: comma separated string of playing player's Labels
+        """
+        players = self.get_players(all=True)
+        if playing is None:
+            player_str = ""
+            for player in players:
+                if player_str != "":
+                    player_str += ","
+                player_str += player.label
+        playing = playing.lower()
+        play_list = [x.strip() for x in playing.split(',')]
+        for player in players:
+            playing_var = player.ctls_vars["playing"]
+            if player.label.lower() in play_list:
+                player.playing = True
+            else:
+                player.playing = False
+            playing_var.set(player.playing)
         
     
     def get_player(self, position=None):
