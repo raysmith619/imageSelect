@@ -22,7 +22,7 @@ class SelectGameControl(SelectControlWindow):
         
             
     def _init(self, *args, title=None, control_prefix=None,
-              play_control=None, player_control=None,
+              central_control=None, player_control=None,
                **kwargs):
         """ Initialize subclassed SelectControlWindow singleton
              Setup score /undo/redo window
@@ -32,7 +32,7 @@ class SelectGameControl(SelectControlWindow):
         if control_prefix is None:
             control_prefix = SelectGameControl.CONTROL_NAME_PREFIX
         self.player_control = player_control
-        self.play_control = play_control
+        self.central_control = central_control
         super()._init(*args, title=title, control_prefix=control_prefix,
                        **kwargs)
 

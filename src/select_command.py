@@ -22,7 +22,8 @@ class SelectCommand:
     """ Command object, sufficient to contain do/undo
     """
     def __init__(self, action_or_cmd, cmd_num=None,
-                 has_prompt=False, undo_unit=False):
+                 has_prompt=False, undo_unit=False,
+                 display=True):
         """ Initialize do/undo Structure
         :action_or_cmd:
             str - type of command:
@@ -32,6 +33,7 @@ class SelectCommand:
         :has_prompt: True - has move prompt  Default: False
         :undo_unit:  True - completes an undoable sequence
                     default: False
+        :display: update display at end of execution default: True
         """
         if self.command_manager is None:
             raise SelectError("No SelectCommandManager")
@@ -43,7 +45,7 @@ class SelectCommand:
         self.has_prompt = has_prompt
         self.undo_unit = undo_unit
         self.move_no = self.command_manager.get_move_no()
-
+        self.display = display
         
         if isinstance(action_or_cmd, str):
             self.action = action_or_cmd
@@ -141,4 +143,27 @@ class SelectCommand:
 
     def can_undo(self):
         return self.can_undo_
+
+
+
+    def set_changed(self, parts):
+        """ Set part as changed since last display
+        :parts:    part/id or list part(s) changed
+        """
+        self.command_manager.set_changed(parts)
+        
+        
+    def clear_changed(self, parts):
+        """ Clear part as changed
+        :parts: part/id or list cleared
+        """
+        self.command_manager.clear_changed(parts)
+
+            
+    def get_changed(self, clear=False):
+        """ Get list of changed parts
+        :clear: clear list on return
+                default: False
+        """
+        return self.command_manager.get_changed(clear=clear)
         

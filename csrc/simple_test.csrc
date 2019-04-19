@@ -1,0 +1,49 @@
+# simple_test.csrc
+"""
+Test command source file
+Simple initial exercise of
+ 1. multiline doc string standalone
+ 2. double quoted "string"
+ 3. Logging multiline 'string'
+ """
+lg "simple_test.crc - first crs_dots test script"
+set_level "simple_test_off" 0	# Flag guaranteed to be off
+set_level "simple_test_on" 1	# flag guaranteed to be on
+
+lg "This SHOULD be listed" "simple_test_on"
+lg "This should NOT be listed" "simple_test_off"
+
+lg '''Multiline doc string using '
+	in a lg command
+	'''
+set_playing "Ax,G"
+set_player "G"
+up
+enter
+down
+enter
+left
+enter
+right
+enter
+plus
+enter
+minus
+help
+
+"""
+display commands
+"""
+blinking
+stack
+lighted
+selected
+turnedon
+down
+undo
+redo
+info
+###parts
+###rectangles
+
+

@@ -31,9 +31,11 @@ from active_check import ActiveCheck
 from sc_game_control import SelectGameControl
 from sc_player_control import PlayerControl
 from sc_score_window import ScoreWindow
+from canvas_tracked import CanvasTracked
 
 loop_no = 0           # Label loop number, starting at 1
 sp = None
+command_stream = None
 game_control = None
 def pgm_exit():
     ActiveCheck.clear_active()  # Disable activities
@@ -68,14 +70,18 @@ def str2bool(v):
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
 ###sys.setrecursionlimit(500)
+cmd_file_name = None        # Command file, if one
+###cmd_file_name = "3down.scrc"  # Command file, if one
+src_lst = True                  # List source as run
+stx_lst = True                # List Stream Trace cmd
 
 loop = False        # Repeat game after end after waiting interval
 loop_after = 5      # If looping, delay in seconds
 min_xlen = 10       # Minimum xlen(pixels) and ylen
 nx = 5              # Number of x divisions
 ny = nx             # Number of y divisions
-playing = None       # If present comma separated list of playing (labels)
-run_game = True		# Run game upon starting
+playing = None      # If present comma separated list of playing (labels)
+run_game = False	# Run game upon starting
 show_id = False     # Display component id numbers
 show_players = True # Display players info/control
 show_score = True   # Display score / undo /redo
@@ -84,6 +90,10 @@ stroke_move = False # Support stroke move for touch screens
 width = 600         # Window width
 height = width      # Window height
 board_change = True # True iff board needs redrawing
+
+
+
+
 
 base_name = os.path.splitext(os.path.basename(sys.argv[0]))[0]
 SlTrace.setLogName(base_name)
@@ -106,6 +116,16 @@ parser.add_argument('--btmove', type=float, dest='btmove', default=btmove)
 parser.add_argument('--ew_display', type=int, dest='ew_display', default=ew_display)
 parser.add_argument('--ew_select', type=int, dest='ew_select', default=ew_select)
 parser.add_argument('--ew_standoff', type=int, dest='ew_standoff', default=ew_standoff)
+parser.add_argument('-f', '--file', dest='cmd_file_name', default=cmd_file_name)
+parser.add_argument('-r', '--run', action='store_true', dest='run_game', default=run_game,
+                        help=("Run program upon loading"
+                          " (default:%s" % run_game))
+parser.add_argument('-l', '--src_lst', action='store_true', default=src_lst,
+                    help=("List source as run"
+                          " (default:%s" % src_lst))
+parser.add_argument('-x', '--stx_lst', action='store_true', default=stx_lst,
+                    help=("List commands expanded as run"
+                          " (default:%s" % stx_lst))
 parser.add_argument('--loop', type=str2bool, dest='loop', default=loop)
 parser.add_argument('--loop_after', type=float, dest='loop_after', default=loop_after)
 parser.add_argument('--min_xlen=', type=int, dest='min_xlen', default=min_xlen)
@@ -127,6 +147,7 @@ SlTrace.lg("args: %s\n" % args)
 
 first_set_app = True        # Set False after first
 btmove = args.btmove
+cmd_file_name = args.cmd_file_name
 loop = args.loop
 loop_after = args.loop_after
 min_xlen = args.min_xlen
@@ -134,10 +155,13 @@ nx = args.nx
 ny = args.ny
 nsq = nx * ny
 playing = args.playing
+run_game = args.run_game
 show_id = args.show_id
 show_players = args.show_players
 show_score = args.show_score
 speed_step = args.speed_step
+src_lst = args.src_lst
+stx_lst = args.stx_lst
 stroke_move = args.stroke_move
 trace = args.trace
 if trace:
@@ -155,7 +179,6 @@ memory_trace = False    # Set true when tracing
 SelectPart.set_edge_width_cls(ew_display,
                           ew_select,
                           ew_standoff)
-
 
 def is_in_pgm_args(flag):
     """ Test if flag present in pgm args
@@ -433,7 +456,9 @@ def set_dots_button():
         board_frame.pack()
         msg_frame = Frame(mw)
         msg_frame.pack(side="bottom")
-        board_canvas = Canvas(board_frame, width=width, height=height)
+        ###board_canvas = CanvasTracked(board_frame, 'canvas', width=width, height=height, bg="white")
+        board_canvas = CanvasTracked(board_frame, width=width, height=height, bg="white")
+        ###board_canvas = Canvas(board_frame, width=width, height=height, bg="white")
         board_canvas.pack()
         board_change = False
     if sqs is None:
@@ -443,8 +468,11 @@ def set_dots_button():
         sqs.display()
             
     if sp is None:
+        if command_stream is not None:
+            command_stream.reset()      # Reset stream
         sp = SelectPlay(board=sqs, msg_frame=msg_frame,
                         mw=mw, start_run=False, game_control=game_control,
+                        cmd_stream=command_stream,
                         player_control=player_control,
                         on_exit=pgm_exit,
                         on_end=end_game,
@@ -556,7 +584,7 @@ def show_players_window():
 def cmd_file():
     """ Setup command file processing
     """
-    CommandFile(title="Command File",
+    CommandFile(title="Command File", src_file_name=cmd_file_name,
                      cmd_execute=sp.user_cmd)    
 
 
@@ -574,6 +602,10 @@ def pause_cmd():
     global sp
     if sp is not None:
         sp.pause_cmd()
+
+if cmd_file_name is not None:
+    command_stream = CommandFile(src_file_name=cmd_file_name, run_cmd=run_cmd,
+                                 src_lst=src_lst, stx_lst=stx_lst)
 
 player_control = PlayerControl(title="Player Control", display=True)
 if playing is not None:

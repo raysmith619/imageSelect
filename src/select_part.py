@@ -199,7 +199,18 @@ class SelectPart(object):
         new_copy.set_self(self)         
         return new_copy
     '''
-   
+
+    def part_tag(self):
+        """ Return identifying tag for this part
+           Used in debugging 
+        """
+        tag = "part:" + self.part_type
+        tag += "_" + self.sub_type_desc()
+        if self.row != 0:
+            tag += "_%d_%d" % (self.row, self.col)
+        tag += "_id:%d" % self.part_id
+        return tag
+    
 
     def copy(self):
         """ Return copy of self, independent to allow independent modifications
@@ -253,7 +264,7 @@ class SelectPart(object):
         new_copy.blinker = select_copy(self.blinker)         # If blinking
         new_copy.loc = self.loc
         new_copy.part_check(self, prefix="part __init__ at end")         
-        
+        new_copy.base = self.base
         return new_copy
 
 
@@ -353,7 +364,7 @@ class SelectPart(object):
         self.text_tags = []         # appended texts if any
         self.centered_text = []     # CenteredText entries
         self.blinker = None         # If blinking
-
+        self.base = {}              # base(reset) values if any
         if point is not None:
             self.loc = SelectLoc(point=point)
         elif rect is not None:
@@ -362,7 +373,15 @@ class SelectPart(object):
             self.loc = loc
         else:
             raise SelectError("SelectPart: neither point nor rect nor loc type")
-    
+
+    def blinker_set(self, blinker):
+        """ set blinker, clearing previous if any,
+        :blinker: blinking object
+        """
+        if self.blinker:
+            self.blinker.stop()
+            self.blinker = None
+        self.blinker = blinker    
 
     def set_copy(self, copy):
         """ Setup us as given object
@@ -435,6 +454,8 @@ class SelectPart(object):
             st += " turned_on"
         if self.is_highlighted():
             st += " highlighted"
+        if self.is_selected():
+            st += " selected"
         st += " at %s" % self.loc
         if self.centered_text:
             for ct in self.centered_text:
@@ -558,8 +579,10 @@ class SelectPart(object):
         else:
             return []
 
-    def set(self, **kwargs):
+    def set(self, set_base=True, **kwargs):
         """ Set attributes for part
+        :set_base: also set base(reset) value
+                default: True
         :name=val: - set attribute which must already be
                     present in object
         """
@@ -568,7 +591,9 @@ class SelectPart(object):
                 raise SelectError("SelectPart.set(%s) not in part")
             
             setattr(self, name, kwargs[name])
-        
+            if set_base:
+                self.base[name] = kwargs[name]
+                
         
     def set_color(self, color):
         """ Set color
@@ -696,11 +721,12 @@ class SelectPart(object):
         
         if self.part_id not in self.sel_area.parts_by_id:
             SlTrace.lg("part not in parts_by_id")
-        if not self.connecteds:
-            SlTrace.lg("display_clear no connecteds %s" % self)
-        if self.blinker is not None:
+        if self.blinker:
             self.blinker.stop()
             self.blinker = None
+            
+        if not self.connecteds:
+            SlTrace.lg("display_clear no connecteds %s" % self)
         self.clear_display_multi_tags()
         if self.display_tag is not None:   # leave alone if highlighted
             if isinstance(self.display_tag, list):
@@ -732,7 +758,41 @@ class SelectPart(object):
         if self.move_no_tag is not None:
             self.sel_area.canvas.delete(self.move_no_tag)
             self.move_no_tag = None
+        for attr in self.base:
+            setattr(self, attr, self.base[attr])
+        if SlTrace.trace("part_track_uncleared"):
+            tracked = self.get_tracked()
+            if tracked:
+                SlTrace.lg("Uncleared display_sections:%d" %
+                           len(tracked))
+                self.list_tracked()
+                for track in tracked:
+                    track_rec_id, track_track_no, track_stack = track
+                    SlTrace.lg("Delete uncleared section %d %d" % (track_rec_id, track_track_no))
+                    self.sel_area.canvas.delete(track_rec_id)
 
+
+    def get_tracked(self, start=None):
+        """ Get tracked entries starting at start
+        :start: starting number
+                default: start_track_no
+        :returns: list of tracked canvas items(e.g. rectangles)
+                         tuples(rec_id, track_no, call_stack)
+                    for this part
+        """
+        return self.sel_area.canvas.get_tracked(start=start, part=self)
+
+
+    def list_tracked(self):
+        """ list currently tracked sections
+        """
+        tks = self.get_tracked()
+        SlTrace.lg("Uncleared segments(%d) for %s" % (len(tks), self))
+        for tk in tks[0:2]:
+            tk_rec_id = tk[0]
+            self.sel_area.canvas.trace_item(tk_rec_id, begin=-8)
+        
+        
     def clear_centered_texts(self):
         """ Clear out all centered texts, display only
         """
@@ -1232,7 +1292,7 @@ class SelectPart(object):
     def clear_display_multi_tags(self):
         """ Clear multi tags
         """
-        if self.display_multi_tags is None:
+        if self.display_multi_tags is None or not self.display_multi_tags:
             return
         for taggroup in self.display_multi_tags:
             for tag in taggroup:
@@ -1475,6 +1535,9 @@ class SelectPart(object):
         :display: display part, default = True
         :player: new player setting, default: None
         """
+        self.highlight_clear()
+        self.clear_display_multi_tags()
+
         if self.check_mod is not None:
             self.check_mod(self, mod_type=SelectPart.MOD_BEFORE, desc="turn_off")
         self.turned_on = False

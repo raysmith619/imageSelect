@@ -30,7 +30,7 @@ class SelectCommandManager:
         self.current_command = None
         self.command_stack = []         # Commands completed, which can be undone
         self.undo_stack = []            # Commands which have been undone, which can be redone
-        
+        self.changed = {}               # Changed since last display
 
     def next_cmd_no(self):
         """ Provide next unique command number
@@ -72,7 +72,30 @@ class SelectCommandManager:
             return self.command_stack[-1]
         
         return None
-    
+
+
+    def list_stack(self, tag=""):
+        """ LIst top of command stack
+        """
+        SlTrace.lg("Command Stack(oldest->newest):")
+        index = len(self.command_stack) - 1
+        while index >= 0:
+            cmd = self.command_stack[index]
+            if cmd.undo_unit:
+                break       # stop 
+            index -= 1      # continue looking back
+            
+        cs_str = ""
+        for cmd in  self.command_stack[index:]:
+            if cs_str != "":
+                cs_str += "\n  "
+            cs_str += str(cmd)
+        st = ("\n%s command_stack: (n:%d) %s"
+                    % (tag, len(self.command_stack), cs_str))
+        indent = " " * 8
+        st = st.replace("\n", "\n"+indent) 
+        SlTrace.lg(st)
+            
     
     def last_undo_command(self):
         if self.undo_stack:
@@ -205,8 +228,50 @@ class SelectCommandManager:
             self.cmd_stack_print("save_command", "execute_stack")
 
 
+    def get_part(self, id=None, type=None, sub_type=None, row=None, col=None):
+        """ Get basic part
+        :id: unique part id
+        :returns: part, None if not found
+        """
+        return self.user_module.get_part(id=id, type=type, sub_type=sub_type, row=row, col=col)
+
+
+    def set_changed(self, parts):
+        """ Set part as changed since last display
+        :parts:    part/id or list to set as changed
+        """
+        if not isinstance(parts, list):
+            parts = [parts]     # list of one
+        for part_id in parts:
+            if not isinstance(part_id, int):
+                part_id = part_id.part_id   # convert to id
+            self.changed[part_id] = part_id
+        
+        
+    def clear_changed(self, parts):
+        """ Clear part as changed
+        :parts: part/id or list to clear as changed
+        """
+        if not isinstance(parts, list):
+            parts = [parts]     # list of one
+        for part_id in parts:
+            if not isinstance(part_id, int):
+                part_id = part_id.part_id    # convert to id
+            del self.changed[part_id]
+            
+    def get_changed(self, clear=False):
+        """ Get list of changed parts
+        :clear: clear list on return
+                default: False
+        """
+        changed = list(self.changed.keys())
+        if clear:
+            self.changed = {}
+        
+        return changed
+
     def set_move_no(self, move_no=None):
-        """ Set (comming)move number
+        """ Set (coming)move number
         Provides the game specific move control
         """
         if move_no is None:
@@ -306,4 +371,14 @@ class SelectCommandManager:
         indent = " " * 8
         st = st.replace("\n", "\n"+indent) 
         SlTrace.lg(st)
-        
+    
+    
+    
+            
+    def display_update(self):
+        """ Update display after command
+        Display all changed parts, clearing modify flags
+        """
+        if self.current_command:
+            self.current_command.display_update()
+    

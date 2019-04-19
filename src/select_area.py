@@ -20,6 +20,7 @@ from select_region import SelectRegion
 from select_mover import SelectMover, SelectMoveDisplay
 from select_stroke import SelectStroke                    
 from _ast import Or
+from docutils.nodes import Part
                      
 class SelectArea(object):
     """
@@ -286,10 +287,14 @@ class SelectArea(object):
     
     def is_selected(self, part):
         """ Check if part is selected
-        :part: part to check
+        :part: part/part_id to check
         """
-        for part_id in self.selects:
-            if part_id == part.part_id:
+        if isinstance(part, int):
+            part_id = part 
+        else:
+            part_id = part.part_id
+        for selected_part_id in self.selects:
+            if part_id == selected_part_id:
                 return True
             
         return False
@@ -380,15 +385,25 @@ class SelectArea(object):
     def display_order(self, parts):
         """ return parts in display order: Do all regions, then edges, then corners
          so corners are not blocked by regions
+         :parts: part/id list
         """
+        if len(parts) == 0:
+            return []
+        
+        pts = parts
+        if isinstance(parts[0], int):
+            pts = []
+            for part in parts:
+                pts.append(self.get_part(part)) # Convert id to part
+                
         ordered = []
-        for part in parts:
+        for part in pts:
             if part.is_region():
                 ordered.append(part)
-        for part in parts:
+        for part in pts:
             if part.is_edge():
                 ordered.append(part)
-        for part in parts:
+        for part in pts:
             if part.is_corner():
                 ordered.append(part)
         return ordered
@@ -449,7 +464,7 @@ class SelectArea(object):
     def get_part(self, id=None, type=None, sub_type=None, row=None, col=None):
         """ Get basic part
         :id: unique part id
-        :type: part type e.g., edge, region, corner
+        :type: part type e.g., edge, region, corner default: "edge"
         :sub_type: must match if present e.g. v for vertical, h for horizontal
         :row:  part row
         :col: part column
@@ -463,6 +478,8 @@ class SelectArea(object):
             part = self.parts_by_id[id]
             return part
         
+        if type is None:
+            type = "edge"
         for part in self.parts:
             if part.part_type == type and (sub_type is None or part.sub_type() == sub_type):
                 if part.row == row and part.col == col:
@@ -944,27 +961,32 @@ class SelectArea(object):
         
     def select_clear(self, parts=None):
         """ Select part(s)
-        :parts: part or list of parts
+        :parts: part/id or list of parts
                 default: all selected
         """
         '''parts = select_copy(parts)'''
         if parts is None:
             parts = []
-            for part_id in self.selects:
-                parts.append(self.get_part(part_id)) 
+            for selects_part_id in self.selects:
+                parts.append(selects_part_id) 
         if not isinstance(parts, list):
             parts = [parts]
         if SlTrace.trace("selected"):
             self.list_selected("select_clear BEFORE")
         for part in parts:
-            if part.part_id in self.selects:
-                del(self.selects[part.part_id])
+            if isinstance(part, int):
+                part_id = part 
+            else:
+                part_id = part.part_id
+            if part_id in self.selects:
+                del(self.selects[part_id])
         if SlTrace.trace("selected"):
             self.list_selected("select_clear AFTER")
+
         
     def select_set(self, parts, keep=False):
         """ Select part(s)
-        :parts: part or list of parts
+        :parts: part/id or list
         :keep: keep previously selected default: False
         """
         parts = copy.copy(parts)
@@ -981,10 +1003,10 @@ class SelectArea(object):
     
     
     def get_selects(self):
-        """ GEt list of selected parts
+        """ Get list of selected parts
         :returns: list, empty if none
         """
-        return self.selects
+        return self.selects.keys()
 
 
     

@@ -1,0 +1,26 @@
+# two_squares.csrc
+"""
+Create one completed square
+ """
+lg "two_squares.crc - create two completed squares"
+set_playing "Ax,G"
+set_player "G"
+select "h" 1 1
+enter
+select "v" 1 2
+enter
+select "h" 2 1
+enter
+select "v" 1 1
+enter
+lg "square should be displayed"
+
+select "h" 2 2
+enter
+select "v" 2 3
+enter
+select "h" 3 2
+enter
+select "v" 2 2
+enter
+lg "two squares should be displayed"

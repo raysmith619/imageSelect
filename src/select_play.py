@@ -12,6 +12,7 @@ from select_trace import SlTrace
 from select_error import SelectError
 from sc_player_control import PlayerControl        
 from select_command_play import SelectCommandPlay
+from select_play_cmd import SelectPlayCommand
 from select_command_manager import SelectCommandManager
 from select_part import SelectPart
 from select_player import SelectPlayer
@@ -20,6 +21,8 @@ from active_check import ActiveCheck
 from docutils.nodes import Part
 from sc_score_window import ScoreWindow
 from select_blinker_state import BlinkerMultiState
+from select_kbd_cmd import SelectKbdCmd
+
 from gr_input import gr_input
 
 class SelectPlay:
@@ -34,6 +37,8 @@ class SelectPlay:
                  run_check_ms=10,
                  auto_play_check_ms=10,
                  cmd_stream=None,
+                 src_lst=False,
+                 stx_lst=False,
                  btmove=.1, move_first=None,
                  before_move=None, after_move=None,
                  show_ties=False,
@@ -51,6 +56,11 @@ class SelectPlay:
         :show_ties: ties are shown
         :undo_len: maximum length of undo
             default: 100
+        :cmd_stream: command stream if any,
+                If present, get commands from here
+                default: none
+        :src_lst: True - list source as run
+        :stx_lst: True - list command stream as run
         """
         self.playing = True     # Hack to suppress activity on exit event
         if score_window is None:
@@ -67,6 +77,7 @@ class SelectPlay:
             self.msg_frame.pack(side="bottom")
         self.msg_frame = msg_frame
         self.cmd_stream = cmd_stream
+        self.cmd_stream_proc = SelectPlayCommand(self, cmd_stream)
         self.undo_len = undo_len
         self.command_manager = SelectCommandManager(self, undo_len=self.undo_len)
         SelectCommandPlay.set_management(self.command_manager, self)
@@ -101,17 +112,8 @@ class SelectPlay:
         self.move_no_label = None       # Move no label, if displayed
         self.waiting_for_message = False
         ###self.mw.protocol("WM_DELETE_WINDOW", self.on_exit)
-        self.mw.bind("<KeyPress>", self.key_press)
-        self.mw.bind("<KeyRelease>", self.key_release)
+        self.kbd_cmd = SelectKbdCmd(self)
         ###self.board.set_down_click_call(self.down_click_made)
-        """ Keyboard command control
-        """
-        self.keycmd_edge = False
-        self.keycmd_args = []
-        self.keycmd_edge_mark = None        # Current marker edge
-        self.multi_key_cmd_str = None       # Current multi key cmd str
-        self.kbd_input_flag = False           # In kbd_input gathering
-        self.gr_input_top = None       # Set if input
         self.on_end = on_end
         if self.start_run:
             self.mw.after(self.run_check_ms, self.running_loop)
@@ -136,6 +138,12 @@ class SelectPlay:
                 break
             SlTrace.lg("running_loop active", "running_loop")
             self.mw.update_idletasks()
+            if self.cmd_stream is not None:
+                if self.cmd_stream.eof:
+                    pass
+                else:
+                    if self.play_stream_command():
+                        continue    # Look for next command
             if self.running and self.run:
                 SlTrace.lg("running_loop self.running and self.run", "running_loop")
                 if self.first_time:
@@ -179,324 +187,6 @@ class SelectPlay:
             raise SelectError("Don't recognize cmd: %s"
                               % cmd)
         self.show_display()
-
-
-    def key_press(self, event):
-        if self.kbd_input_flag:
-            self.kbd_input_add_char(event.char)
-            return
-        
-        self.key_press_event(event)
-
-
-    def key_press_event(self, event):
-        """ Keyboard key press processor
-        """
-        if False and not SlTrace.trace("keycmd"):
-            return
-        
-        ec = event.char
-        ec_code = event.keycode
-        ec_keysym = event.keysym
-        self.key_press_cmd(ec, ec_code, ec_keysym)
-
-        
-    def key_press_cmd(self, ec=None,
-                      ec_code=None,
-                      ec_keysym=None):
-        """ Keyboard key press / command processor
-        """
-        if ec is None:
-            ec = -1
-        if ec_code is None:
-            ec_code = -1
-        if ec_keysym is None:
-            ec_keysym = "NA"
-        SlTrace.lg("key press: '%s' %s(x%02X)" % (ec, ec_keysym, ec_code))
-        if self.multi_key_cmd is None:
-            if ec_keysym == "m":
-                self.multi_key_cmd_str = ec_keysym
-        if self.multi_key_cmd_str is not None:
-            if ec_keysym == ";" or ec_keysym == " " or ec_keysym == "Return":
-                self.multi_key_cmd()
-                return
-            
-            self.multi_key_cmd_str += ec_keysym
-            return
-            
-        if SlTrace.trace("selected"):
-            self.list_selected("key_press_cmd:" + ec_keysym)
-        if ec == "j":       # Info (e.g. "i" for current edge position
-            edge = self.get_keycmd_edge()
-            if edge is None:
-                self.beep()
-                return
-                
-            SlTrace.lg("    %s\n%s" % (edge, edge.str_edges()))
-            return
-
-        if ec_keysym == "Return":
-            edge = self.get_keycmd_edge()
-            if edge is None:
-                self.beep()
-                return
-            
-            if edge.is_turned_on():
-                self.beep()
-                return
-            
-            edge.highlight_clear()
-            return self.make_new_edge(edge=edge)
-            
-        if (ec_keysym == "Up"
-                or ec_keysym == "Down"
-                or ec_keysym == "Left"
-                or ec_keysym == "Right"
-                or ec_keysym == "plus"
-                or ec_keysym == "minus"):
-            res = self.keycmd_move_edge(ec_keysym)
-            return res
-        
-
-        if self.keycmd_edge:
-            try:
-                arg = int(ec)
-            except:
-                self.keycmd_edge = False
-                return
-            
-            self.keycmd_args.append(arg)
-            if len(self.keycmd_args) >= 2:
-                self.make_new_edge(dir=self.keycmd_edge_dir, rowcols=self.keycmd_args)
-                self.keycmd_edge = False
-            return
-
-        if ec_keysym == "h":        # Help
-            SlTrace.lg("""
-            space - Add multiline blank delimiter
-            a - add delimiter with one line of text
-            b - list blinking parts
-            c - clear current part display
-            d - (re)display current part
-            f - rurn current part off
-            h - Output this help listing
-            i - list part, edges of current location
-            g - List on square(s) touching current edge
-            l - List highlighted parts
-            n - turn on current part
-            
-            r - redo undone command
-            s - list selected parts
-            t - list parts that are turned on
-            v - set current edge
-            Selection movement directions:
-                UP
-                Down
-                Left
-                Right
-                "plus" - rotate selection clockwise
-                "minus" - rotate selection counter clockwise
-            
-            """)
-            return
-
-        if ec_keysym == "space":
-            SlTrace.lg("_" * 50 + "\n\n\n")
-            return
-        
-        if ec_keysym == "a":
-            SlTrace.lg("_" * 50 + "\n\n\n")
-            annotation = self.kbd_input("Enter annotation:")
-            SlTrace.lg(annotation)
-            return
-       
-                
-        if ec_keysym == "b":    # List "Blinking" parts
-            self.list_blinking("blinking")
-            
-            
-        if ec_keysym == "l":
-            part_ids = list(self.board.area.highlights)
-            SlTrace.lg("Highlighted parts(%d):" % len(part_ids))
-            for part_id in part_ids:
-                part = self.get_part(id=part_id)
-                SlTrace.lg("    %s" % part)
-            return
-
-        if ec_keysym == "s":        # List those selected
-            self.list_selected()
-            return
-
-        if ec_keysym == "t":        # List those turned on
-            part_ids = list(self.board.area.parts_by_id)
-            n_on = 0
-            for part_id in part_ids:
-                part = self.get_part(id=part_id)
-                if part.is_turned_on():
-                    n_on += 1
-            SlTrace.lg("parts turned on(%d of %d):" % (n_on, len(part_ids)))
-            for part_id in part_ids:
-                part = self.get_part(id=part_id)
-                if part.is_turned_on():
-                    SlTrace.lg("    %s" % part)
-            return
-
-            
-        if ec == "v":
-            self.keycmd_edge = True
-            self.keycmd_edge_dir = ec
-            self.keycmd_args = []
-            return
-        
-        if ec == "r":
-            self.redo()
-            return
-        
-        if ec_keysym == "g":       # Do info on squares(regions) touching current edge
-            edge = self.get_keycmd_edge()
-            SlTrace.lg("%s" % edge.str_adjacents())
-            return
-        
-        if ec_keysym == "u":
-            self.undo()
-            return
-        
-            
-        x,y = self.get_xy()
-        parts = self.get_parts_at(x,y)
-        if parts:
-            SlTrace.lg("x=%d y=%d" % (x,y))
-            for part in parts:
-                if ec == "i":
-                    SlTrace.lg("    %s\n%s" % (part, part.str_edges()))
-                elif ec == "d":
-                    part.display()
-                elif ec == "c":
-                    part.display_clear()        # clear display
-                elif ec == "n":                 # turn on
-                    part.turn_on(player=self.get_player())
-                elif ec == "f":                 # turn off
-                    part.turn_off()
-
-
-    def kbd_input(self, prompt=None):
-        """ Get line from graphics window
-        """
-        inp = self.gr_input(prompt)
-        '''
-        if prompt is not None:
-            print(prompt, file=sys.stderr)
-        self.kbd_input_str = ""
-        self.kbd_input_flag = True
-        while self.kbd_input_flag:
-            self.mw.update_idletasks()
-            self.mw.update()
-            
-        return self.kbd_input_str
-        '''
-        return inp
-    
-            
-    def kbd_input_add_char(self, c):
-        if c == "\r" or c == "\n":
-            self.kbd_input_flag = False
-            print("\n", sep="", end="", file=sys.stderr)
-            return
-        print(c, sep="", end="", file=sys.stderr)
-        self.kbd_input_str += c
-        
-        
-    def list_blinking(self, prefix=None):
-        self.board.area.list_blinking(prefix=prefix)
-
-    
-    def list_selected(self, prefix=None):
-        self.board.area.list_selected(prefix=prefix)
-
-
-    def keycmd_move_edge(self, keysym):
-        """ Adjust marker based on current marker state and latest keyboard input symbol
-            User remains the same.
-            Movement rules:
-            1. If keysym is (up,down,left,right) new edge will retain the same orientation and
-            move one row/colum in the direction specified by the keysym,
-            keep the same direction and move one in the keysym direction.
-            2. The new edge, wraps around to the opposite side, if the new loction is our of bounds.
-            3. If the keysym is (plus,minus) the new edge will be +/- 90 degrees clockwize
-            from the left corner of the original edge
-            4. If the (plus,minus) rotation would place an edge outside the latice, the rotation is reversed. 
-             
-        :keysym:  keyboard key symbol(up,down,left,right,plus,minus) specifying the location of the new edge
-        """
-        if SlTrace.trace("selected"):
-            self.list_selected("keycmd_move_edge before:" + keysym)
-        edge = self.get_keycmd_edge()
-        edge_dir = edge.sub_type()
-        next_dir = edge_dir
-        next_row = edge.row 
-        next_col = edge.col 
-
-        if keysym == "plus":
-            if edge_dir == "h":
-                next_dir = "v"
-            else:
-                next_dir = "h"
-                next_col -= 1
-        elif keysym == "minus":
-            if edge_dir == "h":
-                next_dir = "v"
-                next_row -= 1
-            else:
-                next_dir = "h"
-        elif keysym == "Up":
-            next_row -= 1
-        elif keysym == "Down":
-            next_row += 1
-        elif keysym == "Left":
-            next_col -= 1
-        elif keysym == "Right":
-            next_col += 1
-
-        if next_row < 1:
-            next_row = self.board.nrows
-        if next_row > self.board.nrows+1 or (next_row > self.board.nrows and next_dir == "v"):
-            next_row = 1
-        if next_col < 1:
-            next_col = self.board.ncols
-        if next_col > self.board.ncols+1 or (next_col > self.board.ncols and next_dir == "h"):
-            next_col = 1
-
-        next_edge = self.get_part(type="edge", sub_type=next_dir, row=next_row, col=next_col)
-        SlTrace.lg("keycmd_move_edge edge(%s) row=%d, col=%d"
-                   % (next_dir, next_row, next_col))
-        if next_edge is None:
-            raise SelectError("keycmd_move_edge no edge(%s) row=%d, col=%d"
-                              % (next_dir, next_row, next_col))
-        self.move_edge_cmd(edge, next_edge)
-
-
-    def move_edge_cmd(self, edge, next_edge):
-        """ Move between edges cmd
-         - change selection
-        :edge: current edge
-        :next_edge: new edge
-        """
-        if SlTrace.trace("track_move_edge"):
-            SlTrace.lg("before move_edge_cmd:\nedge:%s\nnext_edge:%s"
-                       % (edge, next_edge))
-        self.get_cmd("move_edge", undo_unit=True)   # Undo unit
-        self.cmd_select_clear(edge)
-        self.cmd_select_set(next_edge)
-        self.do_cmd()
-        if SlTrace.trace("track_move_edge"):
-            SlTrace.lg("after move_edge_cmd:\nedge:%s\nnext_edge:%s"
-                       % (edge, next_edge))
-
-
-    def multi_key_cmd(self):
-        """ Execute multi-key command
-        """
-        if self.multi_key_cmd_str == "md":  """ Display all parts """
             
             
         
@@ -513,7 +203,7 @@ class SelectPlay:
         self.keycmd_edge_mark = edge
         
         
-    def make_new_edge(self, edge=None, dir=None, rowcols=None):
+    def make_new_edge(self, edge=None, dir=None, rowcols=None, display=True):
         if edge is not None:
             self.new_edge(edge)
             return
@@ -528,39 +218,8 @@ class SelectPlay:
             return
         
         self.new_edge(edge)
-
-
-    def get_keycmd_edge(self):
-        """ Get current marker direction, (row, col)
-        """
-        ####edge = self.keycmd_edge_mark
-        edge = self.get_selected_part()
-        if edge is None:
-            edge = self.get_part(type="edge", sub_type="h", row=1, col=1)
-        return edge
-
-
-    def get_keycmd_marker(self):
-        """ Get current marker direction, (row, col)
-        """
-        edge = self.get_keycmd_edge()
-        dir = edge.sub_type()
-        row = edge.row 
-        col = edge.col
-        return dir, [row,col]
-    
-    
-    def update_keycmd_edge_mark(self, prev_edge_mark, new_edge_mark):
-        """ Update edge mark
-        :prev_edge_mark:  previous edge mark None if none
-        :new_edge_mark:   new edge mark, None if none
-        """
-        if prev_edge_mark is not None:
-            prev_edge_mark.highlight_clear()
-        if new_edge_mark is not None:
-            new_edge_mark.highlight_set()
-        self.keycmd_edge_mark = new_edge_mark
-        
+        if display:
+            self.display_update()
                 
     def get_xy(self):
         """ get current mouse position (or last one recongnized
@@ -578,7 +237,7 @@ class SelectPlay:
     
     
     def get_selects(self):
-        """ GEt list of selected parts
+        """ GEt list of selected part(ids)
         :returns: list, empty if none
         """
         return self.board.get_selects()
@@ -609,17 +268,26 @@ class SelectPlay:
         """ Pause game
         """
         self.run = False
-                    
-                
-            
 
-    def key_release(self, event):
-        """ Keyboard key release processor
+
+    def play_stream_command(self):
+        """ Play next command from command stream
+        :returns: True if OK, False if error or EOF
         """
-        SlTrace.lg("key_release %s" % event.char, "keybd")
+        if self.cmd_stream is None:
+            return False
+        
+        stcmd = self.cmd_stream.get_cmd()
+        if stcmd is None:
+            return False
+        
+        res = self.cmd_stream_proc.do_stcmd(stcmd)
+        return res
+                
         
     def annotate_squares(self, squares, player=None):
         """ Annotate squares in board with players info
+        Setup current command only
         Updates select_cmd: prev_parts, new_parts as appropriate
         :squares: list of squares to annotate
         :player: player whos info is used
@@ -635,7 +303,7 @@ class SelectPlay:
             ###sc = select_copy(square)
             sc = square
             self.add_prev_parts(square)
-            sc.set_centered_text(player.label,
+            sc.set_centered_text(player.label, display=False,
                                      color=player.color,
                                      color_bg=player.color_bg)
             if SlTrace.trace("annotate_square"):
@@ -647,6 +315,29 @@ class SelectPlay:
 
     def show_display(self):
         self.mw.update_idletasks()
+
+
+
+    def set_changed(self, parts):
+        """ Set part as changed since last display
+        :parts:    part/id or list part(s) changed
+        """
+        self.command_manager.set_changed(parts)
+        
+        
+    def clear_changed(self, parts):
+        """ Clear part as changed
+        :parts: part/id or list cleared
+        """
+        self.command_manager.clear_changed(parts)
+
+            
+    def get_changed(self, clear=False):
+        """ Get list of changed parts
+        :clear: clear list on return
+                default: False
+        """
+        return self.command_manager.get_changed(clear=clear)
 
         
     def setup_score_window(self):
@@ -789,6 +480,8 @@ class SelectPlay:
 
     def display_update(self):
         SlTrace.lg("display_update: ", "execute")
+        self.command_manager.display_update()
+        
     
     def select_print(self, tag, trace):
         SlTrace.lg("select_print: "  + tag, trace)    
@@ -940,12 +633,13 @@ class SelectPlay:
  
             
     def mark_edge(self, edge, player, move_no=None):
-        """ Mark edge
+        """ Mark edge - set up current command
+        Select  new edge, clearing other selected
         :edge: edge being marked
         :player: player selecting edge
         """
-        edge.highlight_clear()
-        edge.turn_on(player=player, move_no=move_no)
+        edge.highlight_clear(display=False)
+        edge.turn_on(player=player, move_no=move_no, display=False)
         return
     
     
@@ -977,7 +671,7 @@ class SelectPlay:
     
 
     def get_cmd(self, action=None, has_prompt=False, undo_unit=False,
-                flush=False):
+                flush=False, display=False):
         """ Get current command, else new command
         :action: - start new command with this action name
                 defalt use current cmd
@@ -986,6 +680,7 @@ class SelectPlay:
                     default: False
         :flush: execute any command in progress
                 default: False
+        :display: display at end of command default: False
         """
         if flush and self.select_cmd is not None:
             self.do_cmd()
@@ -999,8 +694,18 @@ class SelectPlay:
                 raise SelectError("get_cmd: previous cmd(%s) not completed"
                                    % self.select_cmd)
         self.select_cmd = SelectCommandPlay(action, has_prompt=has_prompt,
-                                             undo_unit=undo_unit)
+                                             undo_unit=undo_unit,
+                                             display=display)
         return self.select_cmd
+
+
+    def get_current_edge(self):
+        """ Get current marker direction, (row, col)
+        """
+        edge = self.get_selected_part()
+        if edge is None:
+            edge = self.get_part(type="edge", sub_type="h", row=1, col=1)
+        return edge
 
 
     def get_last_cmd(self):
@@ -1061,11 +766,27 @@ class SelectPlay:
         """
         self.prev_mods = []
         self.new_mods = []
+
+
+    def cmd_select(self, parts=None, keep=False, display=False):
+        """ Select parts with given ids
+        :parts: part/id or list of part/ids for parts to select
+        :keep: keep currently selected if True default: False
+        """
+        self.flush_cmds()
+        scmd = self.get_cmd("cmd_select", display=display)
+        prev_selects = list(self.get_selects())
+        scmd.add_prev_selects(prev_selects)
+        if keep:
+            scmd.add_new_selects(prev_selects)
+        scmd.add_new_selects(parts)
+        self.do_cmd()
+        
         
         
     def cmd_select_clear(self, parts=None):
         """ Select part(s)
-        :parts: part or list of parts
+        :parts: part/id or list
                 default: all selected
         """
         scmd = self.get_cmd()
@@ -1390,10 +1111,27 @@ class SelectPlay:
             if self.auto_play(player):
                 return True
         else:
-            if self.manual_play(player):
-                return True
+            if self.cmd_stream and not self.cmd_stream.eof:
+                if self.stream_cmd_play(player=player):
+                    return True
+            else:    
+                if self.manual_play(player):
+                    return True
         
         return False        # No move -no new move
+
+
+    def stream_cmd_play(self, player=None):
+        """ Play next command from command stream
+        :player: player for whom it is a move
+        :returns: True if executed
+        """
+        stcmd = self.cmd_stream.get_cmd()
+        if stcmd is None:
+            return False
+        
+        res = self.cmd_stream_proc.do_stcmd(stcmd)
+        return res
 
 
     def end_game(self, msg=None):
@@ -1607,13 +1345,13 @@ class SelectPlay:
         SlTrace.lg("New edge %s by %s"
                     % (edge, prev_player), "new_edge")
         self.complete_cmd()                     # Complet current command if one
+        self.cmd_select(edge)
         scmd = self.get_cmd("new_edge", undo_unit=True)
         scmd.set_prev_player(prev_player)
         ###edge.highlight_clear()                  # So undo won't re-highlight
         scmd.add_prev_parts(edge)               # Save previous edge state 
         self.mark_edge(edge, prev_player, move_no=scmd.move_no)
         self.add_new_parts(edge)
-        self.cmd_select_set(edge)
         self.do_cmd()                               # move complete
         if SlTrace.trace("selected"):
             self.list_selected("After new_edge")
@@ -1625,7 +1363,7 @@ class SelectPlay:
         regions = []
         if self.is_square_complete(edge, regions):
             self.add_prev_parts(edge)
-            edge.highlight_clear()          # ??? Should we just set flag??
+            edge.highlight_clear(display=False)          # ??? Should we just set flag??
             self.completed_square(edge, regions)
             nsq = len(regions)
             if nsq == 1:
@@ -1757,7 +1495,24 @@ class SelectPlay:
         self.player_control.set_ctls()
         if self.score_window is not None:
             self.score_window.update_window()
-            
+
+
+    
+
+    def select(self, ptype, row=None, col=None, keep=False):
+        """ Select part
+        :ptype: part type: "h" horizontal edge
+                            "v" vertical edge
+        :row: row in grid
+        :col" column in grid
+        :keep: Keep previously selected default: clear previously selected
+        :returns: True iff successful
+        """
+        part = self.get_part(sub_type=ptype, row=row, col=col)
+        if part is None:
+            return False
+        
+        self.select_set(part)
              
     def set_score(self, score, player=None):
         """ Set player score
@@ -1807,40 +1562,12 @@ class SelectPlay:
         :parts: parts to be removed
         """
         self.board.remove_parts(parts)
-    
+        self.set_changed(parts)
     
     def insert_parts(self, parts):
         """ Add new or changed parts
         :parts: parts to be env_added
         """
         self.board.insert_parts(parts)
-
-
-    def gr_input(self, prompt="Enter"):
-       
-        def ok_cmd():
-            """ Function called  upon "OK" button
-            """
-            self.gr_input_entry_text = self.gr_input_entry_var.get()    # Retrieve
-            self.gr_input_reading = False
-            
-            
-        if self.gr_input_top is None:
-            self.gr_input_entry_var = StringVar() # Holds the entry text
-            self.gr_input_top = Toplevel(self.mw)
-            mw = self.gr_input_top
-            label = Label(mw, text=prompt)    # Create Label with prompt
-            label.pack(side=LEFT)
-        
-            entry = Entry(mw, textvariable=self.gr_input_entry_var, bd=3)        # Create Entry space on right
-            entry.pack(side=LEFT, expand=True, fill=BOTH)
-        
-            button = Button(mw, text="OK", command=ok_cmd, fg="blue", bg="light gray")
-            button.pack(side=RIGHT)
-        self.gr_input_entry_var.set("")
-        self.gr_input_reading = True    
-        while self.gr_input_reading:
-            ###self.mw.update_idletasks()
-            self.mw.update()
-        return self.gr_input_entry_text
+        self.set_changed(parts)
             

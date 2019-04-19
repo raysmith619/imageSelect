@@ -37,7 +37,15 @@ class SelectRegion(SelectPart):
         super().__init__(sel_area, "region", **kwargs)
         SelectRegion.partno += 1
         self.partno = SelectRegion.partno
+        c1x,c1y,c3x,c3y = self.get_rect()
+        if self.color is None:
+            self.color= "light gray"
+        self.color_bg_tag = self.sel_area.canvas.create_rectangle(
+                                    c1x, c1y, c3x, c3y,
+                                    fill=self.color)
+        pass
 
+    '''
     def add_rect(self, rect, color=None):
         """ Add rectangle 
         """                
@@ -55,7 +63,8 @@ class SelectRegion(SelectPart):
             pt1 = rec_ps[pi1]
             pt2 = rec_ps[pi2]
             self.add_edge(pt1, pt2)
-
+    '''
+        
 
     def add_edge(self, pt1, pt2):
         """ Add edge, creating edge if new to area

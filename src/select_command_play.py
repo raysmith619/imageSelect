@@ -8,6 +8,7 @@ from active_check import ActiveCheck
 from select_error import SelectError
 from select_command import SelectCommand
 from select_command_manager import SelectCommandManager
+from docutils.nodes import Part
 
 """
 Command processing, especially undo/Redo
@@ -49,7 +50,8 @@ class SelectCommandPlay(SelectCommand):
     for SelectPlay
     """
     def __init__(self, action_or_cmd, cmd_num=None,
-                 has_prompt=False, undo_unit=False):
+                 has_prompt=False, undo_unit=False,
+                 display=True):
         """ Initialize do/undo Structure
         :action_or_cmd:
             str - type of command:
@@ -61,10 +63,12 @@ class SelectCommandPlay(SelectCommand):
         :undo_unit:  True - completes an undoable sequence
                     default: False
         "cmd_num: command number, default: generated
+        :display: update display at end of execution default: True
         """
         SelectCommand.__init__(self, action_or_cmd, cmd_num=cmd_num,
                                has_prompt=has_prompt,
-                               undo_unit=undo_unit)
+                               undo_unit=undo_unit,
+                               display=display)
         if isinstance(action_or_cmd, str):
             if cmd_num is None:
                 cmd_num = self.command_manager.next_cmd_no()
@@ -77,8 +81,8 @@ class SelectCommandPlay(SelectCommand):
             self.new_messages = []
             self.prev_player = self.user_module.get_player()
             self.new_player = select_copy(self.prev_player)
-            self.prev_selects = self.command_manager.user_module.get_selects()
-            self.new_selects = self.prev_selects
+            self.prev_selects = {}
+            self.new_selects = {}
             self.prev_parts = {}    # Hash by id of previous part values
             self.new_parts = {}     # Hash by id of new part values
             self.prev_score = None  # previous (player,score) if any change
@@ -95,14 +99,15 @@ class SelectCommandPlay(SelectCommand):
             st += " has_prompt"
         if self.undo_unit:
             st += " undo_unit"
-        if self.prev_selects:
-            st += "\n  prev_selects:"
-            for part in self.prev_selects.values():
-                st += "\n    %s" % part
-        if self.new_selects:
-            st += "\n  new_selects:"
-            for part in self.new_selects.values():
-                st += "\n    %s" % part
+        if self.action == "cmd_select":
+            if self.prev_selects:
+                st += "\n  prev_selects:"
+                for part_id in self.prev_selects.values():
+                    st += "\n    %s" % self.get_part(part_id)
+            if self.new_selects:
+                st += "\n  new_selects:"
+                for part_id in self.new_selects.values():
+                    st += "\n    %s" % self.get_part(part_id)
         ###st += (" new_player:" + str(self.new_player))
         st += "\n  prev_player: " + str(self.prev_player)
         st += "\n  new_player: " + str(self.new_player)
@@ -213,14 +218,14 @@ class SelectCommandPlay(SelectCommand):
 
     def select_set(self, parts, keep=False):
         """ Select parts
-        :parts: part(s) to select
+        :parts: part/ids(s) to select
         :keep: keep previously selected
                 default: False
         """
         if not isinstance(parts, list):
-            parts = [parts]
+            parts = [parts]     # list of one
         if keep:
-            new_selects = select_copy(self.new_selects)
+            new_selects = select_copy(self.prev_selects)
         else:
             new_selects = {}
         for part in parts:
@@ -256,6 +261,34 @@ class SelectCommandPlay(SelectCommand):
             
             self.prev_parts[part.part_id] = select_copy(part)
 
+    def add_new_selects(self, parts):
+        """ add one or a list of part_ids to new
+        :parts: one or list of part/ids
+        """
+        if not isinstance(parts, list):
+            parts = [parts]
+        for part in parts:
+            if isinstance(part, int):
+                part_id = part 
+            else:
+                part_id = part.part_id
+            self.new_selects[part_id] = part_id
+
+
+    def add_prev_selects(self, parts):
+        """ add one or a list of part_ids to previous
+        Only unique id is kept
+        :parts: one or list of part/part_ids
+        """
+        if not isinstance(parts, list):
+            parts = [parts]
+        for part in parts:
+            if isinstance(part, int):
+                part_id = part 
+            else:
+                part_id = part.part_id
+            self.prev_selects[part_id] = part_id
+
 
     def add_prev_score(self, player, score):
         """ Add previous player, score tupple
@@ -278,63 +311,42 @@ class SelectCommandPlay(SelectCommand):
         self.command_manager.save_cmd(self)
 
 
+    def execute_cmd_select(self):
+        """ Execute selection command, just modifies selection
+            1. clear the selection of previously selected
+            2. set the selection of newly selected
+        """
+        for part_id in self.prev_selects:
+            if part_id not in self.new_selects:
+                part = self.get_part(part_id)
+                part.select_clear()
+                self.set_changed(part_id)
+        for part_id in self.new_selects:
+            if part_id not in self.prev_selects:
+                part = self.get_part(part_id)
+                part.select_set()
+                self.set_changed(part_id)
+
+            
     def display_update(self):
         """ Update display after command
-        Optimize - should have same effect as displaying whole
-                    new set of parts
-         1. clear all prev_parts, if not in new, and present
-         2. display all new_parts (includes pre-clearing)
+        Display all changed parts, clearing modify flags
         """
-        ###return          # TFD - see if still displays
         if ActiveCheck.not_active():
             return
         
-    
-    
         command_manager = self.command_manager
         user_module = command_manager.user_module
         user_module.update_score_window()
- 
-        ###for part_id in self.prev_parts:
-        ###    part = user_module.get_part(part_id)
-        ###    part.display_clear()
-
-        prev_selects = list(self.prev_selects.values())
-        new_selects = list(self.new_selects.values())
-        if SlTrace.trace("selected"):
-            self.list_cmd("display_update before select_clear")
-            self.list_selected("display_update before select_clear")
-        prev_selects_save = copy.copy(self.prev_selects)  # HACK because of changes       
-        user_module.select_clear(prev_selects)
-        self.prev_selects = prev_selects_save
-        if SlTrace.trace("selected"):
-            self.list_cmd("display_update before select_set")
-            self.list_selected("display_update before select_set")        
-        user_module.select_set(new_selects)
-        if SlTrace.trace("selected"):
-            self.list_cmd("display_update after select_set")
-            self.list_selected("display_update after select_set")        
-        display_keys = list(self.new_parts.keys())
-        display_parts = list(self.new_parts.values())
-
-        ###for part in self.prev_parts.values():
-        ###    if part.part_id not in display_parts:
-        ###        display_parts.append(part)
-        for key in self.prev_selects.keys():
-            if key not in display_keys:
-                display_keys.append(key)
-                display_parts.append(self.prev_selects[key])
-        for key in self.new_selects.keys():
-            if key not in display_parts:
-                display_keys.append(key)
-                display_parts.append(self.new_selects[key])
         
-        pdos = self.display_order(display_parts)    # Order display
+        ids = self.get_changed(clear=True)
+        
+        pdos = self.display_order(ids)    # Order display
         for new_part in pdos:
             part_id = new_part.part_id
             if not new_part.connecteds:
                 SlTrace.lg("new_part no connecteds")
-                continue 
+                ###continue 
             part = user_module.get_part(part_id)
             part.display()
 
@@ -342,12 +354,19 @@ class SelectCommandPlay(SelectCommand):
     def display_order(self, parts):
         """ return parts in display order: Do all regions, then edges, then corners
          so corners are not blocked by regions
+         :parts: part/ids list of parts/ids
+         :returns: list of parts in display order
         """
-        if len(parts) < 2:
-            return parts    # No ordering required
         
-        sel_area = parts[0].sel_area    # anyone is ok
+        sel_area = self.get_sel_area()
         return sel_area.display_order(parts) 
+
+
+    def get_sel_area(self):
+        """ Get base parts control
+        """
+        sel_area = self.user_module.board.area
+        return sel_area
     
             
     def execute(self):
@@ -379,14 +398,18 @@ class SelectCommandPlay(SelectCommand):
             or self.new_keycmd_edge_mark != None):
             self.user_module.update_keycmd_edge_mark(
                 self.prev_keycmd_edge_mark, self.new_keycmd_edge_mark)
-        self.user_module.set_player(self.new_player)
-        self.user_module.remove_parts(self.prev_parts.values())
-        self.user_module.insert_parts(self.new_parts.values())
-        self.user_module.display_messages(self.new_messages)
-        if self.new_score is not None:
-            SlTrace.lg("new_score %d: %s" % (self.new_score[1], self.new_score[0]), "score")
-        self.user_module.update_score_from_cmd(self.new_score, self.prev_score)    
-        self.display_update()
+        if self.action == "cmd_select":
+            self.execute_cmd_select()
+        else:
+            self.user_module.set_player(self.new_player)
+            self.user_module.remove_parts(list(self.prev_parts.values()))
+            self.user_module.insert_parts(list(self.new_parts.values()))
+            self.user_module.display_messages(self.new_messages)
+            if self.new_score is not None:
+                SlTrace.lg("new_score %d: %s" % (self.new_score[1], self.new_score[0]), "score")
+            self.user_module.update_score_from_cmd(self.new_score, self.prev_score)
+        if self.display:    
+            self.display_update()
         self.user_module.display_print("execute(%s) AFTER"
                                           % (self.action), "execute_stack")
         SlTrace.lg("player=%s" % str(self.user_module.get_player()), "execute")
@@ -417,6 +440,14 @@ class SelectCommandPlay(SelectCommand):
         if SlTrace.trace("selected"):
             self.list_selected("execute AFTER")
         return True
+
+
+    def get_part(self, id=None, type=None, sub_type=None, row=None, col=None):
+        """ Get basic part
+        :id: unique part id
+        :returns: part, None if not found
+        """
+        return self.user_module.get_part(id=id, type=type, sub_type=sub_type, row=row, col=col)
 
     
     def list_cmd(self, prefix=None):

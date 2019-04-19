@@ -166,7 +166,7 @@ class SelectDots(object):
     
     
     def get_selects(self):
-        """ GEt list of selected parts
+        """ GEt list of selected part ids
         :returns: list, empty if none
         """
         return self.area.get_selects()
@@ -337,6 +337,8 @@ class SelectDots(object):
                 raise SelectError("No part(id=%d) found %s"
                                    % (part.part_id, part))
                 continue
+            d_part.turn_off()
+            d_part.highlight_clear(display=False)
             d_part.display_clear()
             d_part.set(invisible=True)
 
@@ -349,8 +351,10 @@ class SelectDots(object):
             region.display_clear()
         edges = self.area.get_parts(pt_type="edge")
         for edge in edges:
-            edge.display_clear()
             edge.turn_off()
+            edge.select_clear()
+            edge.highlight_clear()
+            edge.display_clear()
         
             
     def insert_parts(self, parts):
