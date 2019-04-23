@@ -569,37 +569,64 @@ class SlTrace:
         Note that no time stamps will be shown
         """
         return cls.setupLogging()
-    
+
+    @classmethod
+    def getSourceDirs(cls, string=False):
+        """ Returns list of source directories
+        """
+        dirs = cls.getAsStringArray("source_files")
+        dirpaths = []
+        for dir in dirs:
+            dirpaths.append(os.path.abspath(dir)) 
+        if string:
+            return " ".join(dirpaths)
+        
+        return dirpaths
     
     @classmethod
-    def getSourcePath(cls, fileName):
+    def getSourcePath(cls, fileName, req=True, report=True):
         """
         Get source absolute path Get absolute if fileName is not absolute TBD handle
         chain of paths like C include paths
         
-        @param fileName
-        @return absolute file path
+        :fileName:
+        :req: Required default: Must be found or error or raise TraceError
+        :report: Report if can't find default: report to log,stderr if can't find
+        :return: absolute file path if found, else None
         """
         if not os.path.isabs(fileName):
             dirs = cls.getAsStringArray("source_files")
             searched = []
             for pdir in dirs:
                 inf = os.path.join(pdir, fileName)
-                if os.path.exists(inf) and os.path.isdir(inf):
+                inf = os.path.abspath(inf)
+                if os.path.exists(inf):
                     try:
                         return os.path.realpath(inf)
                     except IOError as e:
-                        print("Problem with path %s,%s" % (dir, fileName), file=sys.stderr)
+                        raise TraceError("Problem with path %s" % (inf))
+
                 searched.append(os.path.realpath(inf))
-
-            print("%s was not found\n" % fileName, file=sys.stderr)
-            if len(dirs) > 0:
-                print("Searched in:\n", file=sys.stderr)
-                for dirp in dirs:
-                    dirpath = os.path.abspath(dirp)
-                    print("\t%s\n" % dirpath, file=sys.stderr)
-            return fileName # Return unchanged
-
+            if report:
+                cls.lg("%s was not found" % fileName)
+                if len(dirs) > 0:
+                    cls.lg("Searched in:")
+                    for dirp in dirs:
+                        dirpath = os.path.abspath(dirp)
+                        cls.lg("\t%s" % dirpath)
+            if req:
+                raise TraceError("Can't find file %s in %s" % (fileName, dirs))
+            
+            return None
+         # Return unchanged
+        if not os.path.exists(fileName):
+            if report:
+                cls.lg("Can't find file %s" % (fileName))
+            if req:    
+                raise TraceError("Can't find file %s" % (fileName))
+            
+            return None
+            
         return fileName # Already absolute path
 
     @classmethod

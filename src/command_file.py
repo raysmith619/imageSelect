@@ -2,6 +2,7 @@
 """
 Command File PROCESSING
 Facilitates reading human readable commands from files
+Supports Python(.py) files and internal(.csrc) files 
 Specifying input/output file names
 Specifying execution parameters such as:
     delay before command execution
@@ -18,25 +19,33 @@ from tkinter import filedialog
 from tkinter import *
 import re
 import os
+import time
+import traceback
 
 from select_error import SelectError
 from select_trace import SlTrace
-from Tools.scripts.nm2def import NM
-from pdb import TESTCMD
-
+from dots_commands import DotsCommands
 
 class SelectStreamCmd:
     DOC_STRING = "DOC_STRING"          # Special commands
     NULL_CMD = "NULL_CMD"
     EOF = "EOF"                         # End of file
+    EXECUTE_FILE = "EXECUTE_FILE"       # python file
+                                        # execute_file()
+                                        # to execute
     
-    def __init__(self, name, args=None):
+    def __init__(self, name, args=[]):
         self.name = name.lower()        # case insensitive
         self.args = []
         for arg in args:
             self.args.append(arg)
 
-        
+    
+    def is_type(self, typeck):
+        """ Return True iff we are of type
+        """
+        res = self.name.lower() == typeck.lower()
+        return res    
         
     def __str__(self):
         string = self.name
@@ -83,6 +92,7 @@ class CommandFile(Toplevel):
     CONTROL_NAME_PREFIX = "command_file"
     def __init__(self,
                  parent=None,
+                 open=True,
                  run=False,
                  run_cmd=None,
                  title=None,
@@ -98,7 +108,9 @@ class CommandFile(Toplevel):
         """ Player attributes
         :title: window title
         :in_file: Opened input file handle, if one
-        :src_file_name: source file name
+        :src_file_name: source file name .py for python
+                        else .csrc built-in language
+        :open: Open source file default: True - open file on object creation
         :run: run file after opening
                 default: False
         :run_cmd: command to run when run button hit
@@ -123,6 +135,7 @@ class CommandFile(Toplevel):
         self.src_file_name = src_file_name
         if src_dir is None:
             src_dir = "../csrc"
+        SlTrace.setProperty("source_files", src_dir)
         self.src_dir = src_dir
         self.src_lst = src_lst
         self.stx_lst = stx_lst
@@ -139,12 +152,16 @@ class CommandFile(Toplevel):
         self.src_prefix = ""    # Source listing prefix
         if src_file_name is not None:
             self.set_ctl_val("src_file_name", src_file_name)
-       
+        self.file_type = None   # py, csrc file type, when determined
+        self.eof = True         # Cleared on open, set on EOF
+        self.new_file = False
+        self.dots_commands = DotsCommands(self)
         if display:
             self.control_display()
         if self.run:
             self.run_file()
-            
+        else:
+            self.open()    
             
     def control_display(self):
         """ display /redisplay controls to enable
@@ -156,6 +173,7 @@ class CommandFile(Toplevel):
         win_y0 = 100
                     
         self.mw = Toplevel()
+        ###self.mw.withdraw()       # Hide main window
         win_setting = "%dx%d+%d+%d" % (win_width, win_height, win_x0, win_y0)
 
         
@@ -344,6 +362,10 @@ class CommandFile(Toplevel):
         value = self.ctls_vars[field].get()
         return value
 
+    def set_debugging(self, debugging=True):
+        if debugging:
+            self.dots_commands.set_debugging()
+            
     def set_val_from_ctl(self, field_name):
         """ Set value from field
         Also updates value properties
@@ -406,42 +428,65 @@ class CommandFile(Toplevel):
         """ Open command file
         Opens output files, if specified
         :src_file: Source file default, if no extension ext="csrc"
+            If no extension: look for .py, then .csrc
+            in source_directories
+            else look for file in source_directories
         """
         if src_file is None:
             src_file = self.src_file_name
         if src_file is None:
-            src_file = "test_csrc"
-        if re.search(r'\.\w+$', src_file) is None:
-            src_file += ".csrc"     # Default extension
-        if not os.path.isabs(src_file):
-            src_file = os.path.join(self.src_dir, src_file)
-            if not os.path.isabs(src_file):
-                src_file = os.path.abspath(src_file)
-        self.src_file = src_file
-        self.eof = False                # Set True at EOF
-        try:
-            if self.src_lst or SlTrace.trace("csrc"):
-                SlTrace.lg("Open %s" % self.src_file)
-            self.in_file = open(self.src_file, "r")
-        except IOError as e:
-            errno, strerror = e.args
-            SlTrace.lg("Can't open command source file %s: %d %s"
-                              % (self.src_file, errno, strerror))
-            return False
+            raise SelectError("open has No src_file")
         
+        """ Check name as given, then name.py, then name.csrc
+        """
+        path = SlTrace.getSourcePath(src_file, report=False, req=False)
+        if path is None:
+            path = SlTrace.getSourcePath(src_file + ".py", report=False, req=False)
+        if path is None:
+            path = SlTrace.getSourcePath(src_file + ".csrc", report=False, req=False)
+        if path is None:
+            raise SelectError("open can't find %s(.py, .csrc) in %s"
+                              % (src_file, SlTrace.getSourceDirs(string=True)))
+
+        ext = None
+        match = re.search(r'\.([^.]+)$', path)
+        self.file_type = "py"       # Default type
+        if match:
+            ext = match.group(1)
+            if ext == "py":
+                self.file_type = "py"
+            elif ext == "csrc":
+                self.file_type = "csrc"
+            else:
+                self.file_type = "py"
+        self.src_file_path = path
+        self.src_file_name = os.path.basename(path)     # Record        
+        self.eof = False                # Set True at EOF
+        if self.file_type == "csrc":
+            try:
+                if self.src_lst or SlTrace.trace("csrc"):
+                    SlTrace.lg("Open %s" % self.src_file_path)
+                self.in_file = open(self.src_file_path, "r")
+            except IOError as e:
+                errno, strerror = e.args
+                SlTrace.lg("Can't open command source file %s: %d %s"
+                            % (self.src_file_path, errno, strerror))
+                return False
+        self.eof = False
         return True
 
 
-    def reset(self):
+    def reset(self, src_file=None):
         """ Reset stream to allow traversing again
             closes current file, if any, reopen
+            :src_file: new file name, if present default: use current name
         """
         if (hasattr(self, "in_file")
                 and self.in_file is not None
-                and self.in_file.is_open()):
+                and not self.in_file.closed):
             self.in_file.close()
-        if not self.open():
-            raise("Can't reset command_file")
+        if not self.open(src_file=src_file):
+            raise SelectError("Can't reset command_file %s" % self.src_file)
         
         self.stcmd_stack = []   # get/unget stcmd stack
         self.tok = None         # Token if found
@@ -461,6 +506,9 @@ class CommandFile(Toplevel):
 
         toks = []
         tok = None
+        if self.file_type == 'py':
+            return SelectStreamCmd(SelectStreamCmd.EXECUTE_FILE)
+
         while True:
             tok = self.get_tok()
             if tok is None:
@@ -735,7 +783,7 @@ class CommandFile(Toplevel):
             self.eof = True
             if self.src_lst or SlTrace.trace("csrc"):
                 SlTrace.lg("%s: End of File"
-                           % (os.path.basename(self.src_file)))
+                           % (os.path.basename(self.src_file_name)))
             return None
         
         if chomp:
@@ -744,12 +792,127 @@ class CommandFile(Toplevel):
         self.lineno += 1
         if self.src_lst or SlTrace.trace("src_lst"):
             self.src_prefix = ("%s %3d:"
-                       % (os.path.basename(self.src_file),
+                       % (os.path.basename(self.src_file_name),
                           self.lineno))
             SlTrace.lg("%s %s"
                        % (self.src_prefix,
                           line))
         return line
+
+
+    
+    """
+    Process input files:
+        .py ==> python script
+        .bwif ==> BlockWorld scrip
+    """
+    def procFile(self, inFile=None):
+        if inFile is None or inFile == "":
+            inFile = self.src_file_path
+        pat_ftype = re.compile(r'^(.*)\.([^.]+)$')
+        match_ftype = pat_ftype.match(inFile)
+        try:
+            if match_ftype:
+                ext = match_ftype.group(2)
+                if ext.lower() == "py":
+                    return self.procFilePy(inFile)
+                
+            return self.run_file(inFile)
+        except:
+            raise SelectError("File processing error in " + inFile)
+            
+    
+    """
+    Process (Execute) standard python/Jython file
+    """
+    def procFilePy(self, inFile):
+        inPath = SlTrace.getSourcePath(inFile, req=False)
+        if inPath is None:
+            self.error("inFile({} was not found".format(inFile))
+            return False
+        with open(inPath) as f:
+            try:
+                code = compile(f.read(), inPath, 'exec')
+            except Exception as e:
+                tbstr = traceback.extract_stack()
+                SlTrace.lg("Compile Error in %s\n    %s)"
+                        % (inPath, str(e)))
+                return False
+            try:
+                exec(code)
+            except Exception as e:
+                etype, evalue, tb = sys.exc_info()
+                tbs = traceback.extract_tb(tb)
+                SlTrace.lg("Execution Error in %s\n%s)"
+                        % (inPath, str(e)))
+                inner_cmds = False
+                for tbfr in tbs:         # skip bottom (in dots_commands.py)
+                    tbfmt = 'File "%s", line %d, in %s' % (tbfr.filename, tbfr.lineno, tbfr.name)
+                    if not inner_cmds and tbfr.filename.endswith("dots_commands.py"):
+                        inner_cmds = True
+                        SlTrace.lg("    --------------------")         # show bottom (in dots_commands.py)
+                    SlTrace.lg("    %s\n       %s" % (tbfmt, tbfr.line))
+                return False
+            self.eof = True             # Consider at end of file
+        return True
+    
+    """ 
+    Run files listed in list file
+    Currently only supports a sinle file type in list
+    specified by the list file extension
+        bwil - list of bwif files ( default)
+        bwpyl - list of Jython files
+    
+    """    
+    def runList(self, listFile):
+        pat_ftype = re.compile(r'^(.*)\.([^.]+)$')
+        match_ftype = pat_ftype.match(listFile)
+        if match_ftype:
+            ext = match_ftype.group(2)
+            if ext.lower() == "pyl":
+                return self.runListPy(listFile)
+        
+        return self.bExec.runList(listFile)
+
+
+    """
+    Run python files listed, one per line
+    Ignore comments: text starting # to end of line
+    Ignore lines consisting only of whitespace
+    """
+    def runListPy(self, listFile):
+        listPath = self.trace.getSourcePath(listFile)
+        if listPath == "":
+            self.error("listFile({} was not found".format(listFile))
+            return False
+        pat_comment = re.compile(r'^([^#]*)#')
+        pat_blanks = re.compile(r'^\s*$')
+        
+        fileno = 0
+        with open(listPath) as inf:
+            for line in inf:
+                m = pat_comment.match(line)
+                if m:
+                    line = m.group(1)   # Remove comment
+                mb = pat_blanks.match(line)
+                if mb:
+                    continue        #Ignore blank lines
+                line = line.strip()
+                fileno += 1
+                print("Running File {}: {}".format(fileno, line)) # Removing leading and trailing whitespace    
+                if not self.procFilePy(line):
+                    return False
+                if self.timeBetween > 0:
+                    time.sleep(self.timeBetween)
+        return True
+
+
+    def set_play_control(self, play_control, cmd_stream_proc):
+        """ Connect command stream processing to game control
+        :play_control:  game control
+        :cmd_stream_proc: adjunct cmd processor
+        """
+        self.dots_commands.set_play_control(play_control, cmd_stream_proc)
 
     
 if __name__ == "__main__":
@@ -791,11 +954,26 @@ if __name__ == "__main__":
     frame = Frame(root)
     frame.pack()
     SlTrace.setProps()
-    SlTrace.setFlags("csrc")
     cF = CommandFile(frame, title="ComandFIle",
                      src_lst=src_lst,
                      stx_lst=stx_lst,
                      src_file_name=file, display=True)
+    cF.set_debugging()
+
+    '''
+    from select_game_control import SelectGameControl
+    game_control = SelectGameControl(None, title="SelectGameControl Testing")
+    from select_play import SelectPlay
+    play_control = SelectPlay(cmd_stream=cF,
+                              game_control=game_control)
+    '''
+    while True:
+        stcmd = cF.get_cmd()
+        if stcmd is None:
+            break
+        if stcmd.is_type(SelectStreamCmd.EXECUTE_FILE):
+            cF.procFile()
+            break
     ##cF.open("cmdtest")
         
     root.mainloop()

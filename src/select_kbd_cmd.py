@@ -29,7 +29,9 @@ class SelectKbdCmd:
         self.keycmd_edge = False
         self.keycmd_args = []
         self.multi_key_cmd_str = None       # Current multi key cmd str
-        self.get_canvas().set_game_control(game_control)  # hook to info
+        canvas = self.get_canvas()
+        if hasattr(canvas, "set_game_control"):
+            canvas.set_game_control(game_control)  # hook to info
 
 
     def beep(self):

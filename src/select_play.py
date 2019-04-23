@@ -22,6 +22,7 @@ from docutils.nodes import Part
 from sc_score_window import ScoreWindow
 from select_blinker_state import BlinkerMultiState
 from select_kbd_cmd import SelectKbdCmd
+from dots_commands import DotsCommands
 
 from gr_input import gr_input
 
@@ -71,6 +72,13 @@ class SelectPlay:
         self.game_control = game_control
         game_control.set_play_control(self)     # Link ourselves to display/control
         self.speed_step = -1
+        if board is None:
+            from select_dots import SelectDots
+            board_canvas = Canvas()
+            sqs = SelectDots(board_canvas, mw=mw,
+                             nrows=2, ncols=2,
+                            width=200, height=200)
+            board = SelectDots(board_canvas)
         self.board = board
         if msg_frame is None:
             self.msg_frame = Frame(board.canvas)
@@ -262,7 +270,19 @@ class SelectPlay:
         """ Run / continue game
         """
         self.run = True
-    
+
+
+    def run_cmd_file(self, src_file=None):
+        """ Run command stream file
+        Assumes running in running_loop
+        :src_file: source file name default (None) cmd_file entry
+        """
+        if src_file is not None:
+            self.cmd_stream.set_ctl_val("src_file_name", src_file)
+            
+        self.cmd_stream.reset(src_file=src_file)
+        self.cmd_stream.eof = False
+        
     
     def pause_cmd(self):
         """ Pause game

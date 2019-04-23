@@ -16,10 +16,11 @@ class SelectPlayCommand:
         """
         self.play_control = play_control
         self.command_stream = command_stream
+        self.command_stream.set_play_control(play_control, self)
         self.stack_trace = True     # force values
         self.stack_begin = -8
         self.stack_end = -2
-        
+
         
     def do_stcmd(self, stcmd):
         """ Execute play command
@@ -31,6 +32,10 @@ class SelectPlayCommand:
         if SlTrace.trace("stcmd_list"):
             SlTrace.lg("    %s" % (stcmd))
 
+        if stcmd_name == "execute_file":
+            file_name = self.get_arg(stcmd, 1, "")            
+            return self.play_control.cmd_stream.procFile(file_name)
+        
         if stcmd_name == "lg":
             """ Version of Sl1Trace.lg(text[ flag_string})
             :args[0] text to log
@@ -502,9 +507,10 @@ class SelectPlayCommand:
                 default: "", str
         :req: Argument is required Default: optional
         """
+        '''
         if not isinstance(stcmd, SelectStreamCmd):
             raise SelectError("get_arg missing stcmd arg")
-        
+        '''
         if len(stcmd.args) < argno:
             if req:
                 raise SelectError("Missing REQUIRED argno:%d" % argno)
@@ -541,6 +547,26 @@ class SelectPlayCommand:
             keep = self.get_arg(stcmd, 4, False)
         
         return self.play_control.select(ptype, row=row, col=col, keep=keep)
+
+
+    def enter(self):
+        """ Enter command - add current Edge
+        """
+        edge = self.get_current_edge()
+        if edge is None:
+            self.beep()
+            return False
+        
+        if edge.is_turned_on():
+            self.beep()
+            return False
+        
+        edge.display_clear()
+        self.make_new_edge(edge=edge, display=True)
+        self.display_update()       # Ensure screen update
+        return True        
+
+
 
     def set_player(self, name):
         """ Record player  as next player

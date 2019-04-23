@@ -596,6 +596,12 @@ def run_cmd():
         sp.run_cmd()
 
 
+def run_cmd_file():
+    if sp is not None and command_stream is not None:
+        src_file = command_stream.get_val_from_ctl("src_file_name")
+        sp.run_cmd_file(src_file)
+
+
 def pause_cmd():
     """ Pause game
 	"""
@@ -604,7 +610,7 @@ def pause_cmd():
         sp.pause_cmd()
 
 if cmd_file_name is not None:
-    command_stream = CommandFile(src_file_name=cmd_file_name, run_cmd=run_cmd,
+    command_stream = CommandFile(src_file_name=cmd_file_name, run_cmd=run_cmd_file,
                                  src_lst=src_lst, stx_lst=stx_lst)
 
 player_control = PlayerControl(title="Player Control", display=True)
